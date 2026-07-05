@@ -1,0 +1,35 @@
+{
+  "name": "semaphore",
+  "version": "1.0.0",
+  "description": "WebRTC Video Call Client",
+  "main": "app.js",
+  "scripts": {
+    "dev": "vite build && electron ."
+  },
+  "author": "Miravalier",
+  "license": "MIT",
+  "desktopName": "Semaphore",
+  "devDependencies": {
+    "electron": "^43.0.0",
+    "electron-builder": "^26.15.3",
+    "typescript": "^6.0.3",
+    "vite": "^8.1.3"
+  },
+  "build": {
+    "appId": "com.miravalier.semaphore",
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Utility",
+      "synopsis": "Semaphore Chat",
+      "description": "WebRTC Video Chat Client",
+      "maintainer": "Miravalier <semaphore@miravalier.com>"
+    },
+    "files": ["app.js", "preload.js", "build/**"]
+  },
+  "dependencies": {}
+}

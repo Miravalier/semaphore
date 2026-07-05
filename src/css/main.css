@@ -1,0 +1,49 @@
+@font-face {
+    font-family: "Roboto";
+    font-style: normal;
+    font-weight: 400;
+    src: url("../assets/fonts/roboto/roboto.ttf");
+}
+
+* {
+    color: rgb(227, 227, 227);
+    font-family: "Roboto", system-ui, sans-serif;
+    font-size: 20px;
+}
+
+button {
+    background-color: rgba(255, 255, 255, 0.2);
+    border: none;
+    padding: 8px;
+    margin: 8px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: rgba(255, 255, 255, 0.275);
+}
+
+video {
+    overflow: hidden;
+}
+
+.viewport {
+    position: fixed;
+    inset: 0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-flow: column nowrap;
+    z-index: 0;
+}
+
+.dialog {
+    position: fixed;
+    inset: 0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-flow: column nowrap;
+    z-index: 1;
+}
