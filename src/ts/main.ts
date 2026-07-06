@@ -8,13 +8,33 @@ type ScreenCaptureSource = {
     thumbnail: string;
 };
 
+type TurnServerInfo = {
+    hostname: string;
+    username: string;
+    password: string;
+};
+
 declare const electronApi: {
     selectScreen: (id: string) => Promise<void>;
     getScreens: () => Promise<ScreenCaptureSource[]>;
+    getTurnServerInfo: () => Promise<TurnServerInfo>;
 };
 
-window.addEventListener("load", () => {
+window.addEventListener("load", async () => {
     console.log("Semaphore App Loading ...");
+
+    const turnServerInfo = await electronApi.getTurnServerInfo();
+    const iceConfiguration = {
+        iceServers: [
+            {
+                urls: `turn:${turnServerInfo.hostname}`,
+                username: turnServerInfo.username,
+                credential: turnServerInfo.password,
+            },
+        ],
+    };
+    console.log(turnServerInfo);
+    // const peerConnection = new RTCPeerConnection(iceConfiguration);
 
     const viewport = document.body.appendChild(Elements.div("viewport"));
     viewport.appendChild(Elements.h1([], "Semaphore")).style.textAlign = 'center';
@@ -56,4 +76,6 @@ window.addEventListener("load", () => {
             videoElement.play();
         };
     }));
+
+    console.log("Semaphore App Loaded");
 });
