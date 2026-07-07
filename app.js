@@ -1,7 +1,7 @@
 const { app, BrowserWindow, desktopCapturer, session, ipcMain } = require('electron/main');
 const path = require('node:path');
 const fs = require('node:fs');
-const { parseEnv } = require('node:util');
+// const { parseEnv } = require('node:util');
 
 
 let selectedDisplayMediaId = "";
@@ -25,9 +25,8 @@ async function createWindow()
 
 
 app.whenReady().then(() => {
-
-    const envContents = fs.readFileSync(path.join(__dirname, '.env'), {encoding: 'utf-8'});
-    const {TURN_SERVER, TURN_USER, TURN_PASSWORD} = parseEnv(envContents);
+    // const envContents = fs.readFileSync(path.join(__dirname, '.env'), {encoding: 'utf-8'});
+    // const {TURN_SERVER, TURN_USER, TURN_PASSWORD} = parseEnv(envContents);
 
     createWindow();
 
@@ -63,14 +62,6 @@ app.whenReady().then(() => {
             });
         }
         return results;
-    });
-
-    ipcMain.handle('getTurnServerInfo', async (event) => {
-        return {
-            hostname: TURN_SERVER,
-            username: TURN_USER,
-            password: TURN_PASSWORD,
-        };
     });
 });
 

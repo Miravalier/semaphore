@@ -25,6 +25,7 @@ button:hover {
 }
 
 video {
+    flex: 1;
     overflow: hidden;
 }
 

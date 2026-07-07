@@ -10,5 +10,4 @@ contextBridge.exposeInMainWorld('electronApi', {
     isLinux: isLinux,
     selectScreen: (id) => ipcRenderer.invoke('selectScreen', id),
     getScreens: () => ipcRenderer.invoke('getScreens'),
-    getTurnServerInfo: () => ipcRenderer.invoke('getTurnServerInfo'),
 });

@@ -1,80 +1,64 @@
-import * as Elements from "./elements" ;
-import { Future } from "./async";
+import * as Elements from "./elements";
+import { getScreenShare } from "./shim";
+import { createPeerConnection } from "./webrtc";
+import { WebsocketService } from "./api";
 
-type ScreenCaptureSource = {
-    id: string;
-    type: "screen" | "window";
-    name: string;
-    thumbnail: string;
+
+type RoomPeer = {
+    connId: string;
+    connection: RTCPeerConnection;
+    videoElement: HTMLVideoElement;
 };
 
-type TurnServerInfo = {
-    hostname: string;
-    username: string;
-    password: string;
+type PeerJoinData = {
+    connId: string;
 };
 
-declare const electronApi: {
-    selectScreen: (id: string) => Promise<void>;
-    getScreens: () => Promise<ScreenCaptureSource[]>;
-    getTurnServerInfo: () => Promise<TurnServerInfo>;
+type PeerDropData = {
+    connId: string;
 };
+
+const websocketService: WebsocketService = new WebsocketService();
+const peers: {[connId: string]: RoomPeer} = {};
+
 
 window.addEventListener("load", async () => {
     console.log("Semaphore App Loading ...");
 
-    const turnServerInfo = await electronApi.getTurnServerInfo();
-    const iceConfiguration = {
-        iceServers: [
-            {
-                urls: `turn:${turnServerInfo.hostname}`,
-                username: turnServerInfo.username,
-                credential: turnServerInfo.password,
-            },
-        ],
-    };
-    console.log(turnServerInfo);
-    // const peerConnection = new RTCPeerConnection(iceConfiguration);
-
     const viewport = document.body.appendChild(Elements.div("viewport"));
     viewport.appendChild(Elements.h1([], "Semaphore")).style.textAlign = 'center';
 
-    viewport.appendChild(Elements.button([], "Start", async () => {
-        // Select a screen to share
-        const screens = await electronApi.getScreens();
-        const screenIdFuture = new Future<string>();
-        const dialog = document.body.appendChild(Elements.div("dialog"));
-        for (const screen of screens) {
-            const screenOption = dialog.appendChild(Elements.div("screen"));
-            screenOption.addEventListener("click", () => {
-                screenIdFuture.resolve(screen.id);
-            });
-            screenOption.appendChild(Elements.img("thumbnail", screen.thumbnail));
-            screenOption.appendChild(Elements.div("name", screen.name));
-        }
-        const screenId = await screenIdFuture;
-        dialog.remove();
-        await electronApi.selectScreen(screenId);
+    const startButton = viewport.appendChild(Elements.button([], "Start", async () => {
+        const screenShareStream = await getScreenShare();
 
-        // Acquire the selected screen as a stream and attach it to a video object
-        const stream = await navigator.mediaDevices.getDisplayMedia({
-            audio: true,
-            video: {
-                width: 640,
-                height: 480,
-                frameRate: 30
+        startButton.disabled = true;
+
+        const localVideoElement = viewport.appendChild(document.createElement("video"));
+        localVideoElement.autoplay = true;
+        localVideoElement.srcObject = screenShareStream;
+        localVideoElement.onloadedmetadata = () => {
+            localVideoElement.play();
+        };
+
+        websocketService.addMessageHandler(async (message) => {
+            if (message.type === "peerJoin") {
+                const peerJoinData: PeerJoinData = message.data;
+                const remoteVideoElement = viewport.appendChild(document.createElement("video"));
+                remoteVideoElement.autoplay = true;
+                remoteVideoElement.onloadedmetadata = () => {
+                    remoteVideoElement.play();
+                };
+                const peerConnection = await createPeerConnection(peerJoinData.connId, websocketService, screenShareStream, remoteVideoElement);
+                peers[peerJoinData.connId] = {connId: peerJoinData.connId, connection: peerConnection, videoElement: remoteVideoElement};
+            } else if (message.type === "peerDrop") {
+                const peerDropData: PeerDropData = message.data;
+                const roomPeer = peers[peerDropData.connId];
+                roomPeer.videoElement.remove();
+                roomPeer.connection.close();
+                roomPeer.connection.dispatchEvent(new CustomEvent("peerclose"));
+                delete peers[peerDropData.connId];
             }
         });
-
-        console.log("Audio Tracks", stream.getAudioTracks());
-        console.log("Video Tracks", stream.getVideoTracks());
-
-        const videoElement = viewport.appendChild(document.createElement("video"));
-        videoElement.autoplay = true;
-        videoElement.srcObject = stream;
-        videoElement.onloadedmetadata = () => {
-            videoElement.play();
-        };
     }));
 
     console.log("Semaphore App Loaded");
