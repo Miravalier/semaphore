@@ -185,6 +185,8 @@ async def alerts_websocket(websocket: WebSocket):
     await websocket.accept()
 
     connection = Connection(websocket)
+    print("Connection Opened", connection.conn_id)
+
     connection.add_pool('*')
     connection.add_pool(connection.conn_id)
 
@@ -207,6 +209,7 @@ async def alerts_websocket(websocket: WebSocket):
         pass
     finally:
         connection.cleanup()
+        print("Connection Closed", connection.conn_id)
 
 
 async def websocket_broadcast(message: WebsocketMessage, pool_id: str = '*'):
