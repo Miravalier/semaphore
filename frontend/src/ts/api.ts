@@ -151,10 +151,12 @@ export class WebsocketService {
                         }
                     }
                 }
-                this.socket.onclose = () => {
+                this.socket.onclose = (event) => {
+                    console.log("Websocket Closed", event);
                     this.socket = null;
                 }
-                this.socket.onerror = () => {
+                this.socket.onerror = (event) => {
+                    console.log("Websocket Error", event);
                     this.socket = null;
                 }
                 this.socket.onopen = () => {
