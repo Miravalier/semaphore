@@ -189,10 +189,10 @@ async def alerts_websocket(websocket: WebSocket):
     connection.add_pool(connection.conn_id)
 
     try:
-        await connection.send_message(
+        await connection.send_message(WebsocketMessage(
             type=WebsocketMessageType.CONNECT,
             data=WebsocketConnectData(connId=connection.conn_id),
-        )
+        ))
         while True:
             request = WebsocketMessage.model_validate(await connection.socket.receive_json())
             response = await connection.handle_request(request)
