@@ -205,8 +205,8 @@ async def alerts_websocket(websocket: WebSocket):
                 await connection.send_message(response)
     except starlette.websockets.WebSocketDisconnect:
         pass
-    except ValidationError:
-        pass
+    except ValidationError as e:
+        print("ValidationError", connection.conn_id, e.errors)
     finally:
         connection.cleanup()
         print("Connection Closed", connection.conn_id)
