@@ -1,4 +1,4 @@
-import { WebsocketService, WebsocketMessage, getTurnServerInfo } from "./api";
+import * as Api from "./api";
 
 
 export type SignalingMessage = {
@@ -12,19 +12,19 @@ export type MessageHandler = (message: SignalingMessage) => void;
 
 
 export class SignalService {
-    connId: string;
-    websocketService: WebsocketService;
+    peerConnId: string;
+    websocketService: Api.WebsocketService;
     messageHandlers: MessageHandler[];
 
-    constructor(connId: string, websocketService: WebsocketService) {
-        this.connId = connId;
+    constructor(peerConnId: string, websocketService: Api.WebsocketService) {
+        this.peerConnId = peerConnId;
         this.websocketService = websocketService;
         this.websocketService.addMessageHandler(this.onParentMessage);
     }
 
-    onParentMessage(message: WebsocketMessage) {
+    onParentMessage(message: Api.WebsocketMessage) {
         const subMessage: SignalingMessage = message.data;
-        if (subMessage.connId != this.connId) {
+        if (subMessage.connId != this.peerConnId) {
             return;
         }
         for (const subHandler of this.messageHandlers) {
@@ -44,8 +44,8 @@ export class SignalService {
     }
 
     async send(message: SignalingMessage) {
-        message.connId = this.connId;
-        await this.websocketService.send({type: "signaling", data: message});
+        message.connId = this.peerConnId;
+        await this.websocketService.send({type: Api.WebsocketMessageType.SIGNALING, data: message});
     }
 
     close() {
@@ -54,8 +54,8 @@ export class SignalService {
 }
 
 
-export async function createPeerConnection(connId: string, websocketService: WebsocketService, localStream?: MediaStream, remoteTarget?: HTMLVideoElement): Promise<RTCPeerConnection> {
-    const turnServerInfo = await getTurnServerInfo();
+export async function createPeerConnection(peerConnId: string, websocketService: Api.WebsocketService, localStream?: MediaStream, remoteTarget?: HTMLVideoElement): Promise<RTCPeerConnection> {
+    const turnServerInfo = await Api.getTurnServerInfo();
     const iceConfiguration = {
         iceServers: [
             {
@@ -68,7 +68,7 @@ export async function createPeerConnection(connId: string, websocketService: Web
 
     const peerConnection = new RTCPeerConnection(iceConfiguration);
 
-    const signalService = new SignalService(connId, websocketService);
+    const signalService = new SignalService(peerConnId, websocketService);
     signalService.addMessageHandler(async (message: SignalingMessage) => {
         if (message.type === "candidate") {
             peerConnection.addIceCandidate(message.data);

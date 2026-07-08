@@ -1,7 +1,7 @@
 import * as Elements from "./elements";
 import { getScreenShare } from "./shim";
 import { createPeerConnection } from "./webrtc";
-import { WebsocketService } from "./api";
+import * as Api from "./api";
 
 
 type RoomPeer = {
@@ -10,15 +10,8 @@ type RoomPeer = {
     videoElement: HTMLVideoElement;
 };
 
-type PeerJoinData = {
-    connId: string;
-};
-
-type PeerDropData = {
-    connId: string;
-};
-
-const websocketService: WebsocketService = new WebsocketService();
+const roomId = "default";
+const websocketService: Api.WebsocketService = new Api.WebsocketService();
 const peers: {[connId: string]: RoomPeer} = {};
 
 
@@ -41,8 +34,10 @@ window.addEventListener("load", async () => {
         };
 
         websocketService.addMessageHandler(async (message) => {
-            if (message.type === "peerJoin") {
-                const peerJoinData: PeerJoinData = message.data;
+            if (message.type === Api.WebsocketMessageType.CONNECT) {
+                await websocketService.send({type: Api.WebsocketMessageType.ROOM_JOIN, data: {roomId}});
+            } else if (message.type === Api.WebsocketMessageType.PEER_JOIN) {
+                const peerJoinData: Api.PeerJoinData = message.data;
                 const remoteVideoElement = viewport.appendChild(document.createElement("video"));
                 remoteVideoElement.autoplay = true;
                 remoteVideoElement.onloadedmetadata = () => {
@@ -50,8 +45,8 @@ window.addEventListener("load", async () => {
                 };
                 const peerConnection = await createPeerConnection(peerJoinData.connId, websocketService, screenShareStream, remoteVideoElement);
                 peers[peerJoinData.connId] = {connId: peerJoinData.connId, connection: peerConnection, videoElement: remoteVideoElement};
-            } else if (message.type === "peerDrop") {
-                const peerDropData: PeerDropData = message.data;
+            } else if (message.type === Api.WebsocketMessageType.PEER_DROP) {
+                const peerDropData: Api.PeerDropData = message.data;
                 const roomPeer = peers[peerDropData.connId];
                 roomPeer.videoElement.remove();
                 roomPeer.connection.close();
@@ -59,6 +54,8 @@ window.addEventListener("load", async () => {
                 delete peers[peerDropData.connId];
             }
         });
+
+        await websocketService.send({type: Api.WebsocketMessageType.ROOM_JOIN, data: {roomId}});
     }));
 
     console.log("Semaphore App Loaded");

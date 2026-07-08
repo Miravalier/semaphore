@@ -8,7 +8,8 @@ from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
-from typing import Any
+from typing import Any, Optional
+from uuid import uuid4
 
 from .errors import ClientError
 
@@ -16,6 +17,10 @@ from .errors import ClientError
 TURN_SERVER = os.environ['TURN_SERVER']
 TURN_USERNAME = os.environ['TURN_USERNAME']
 TURN_PASSWORD = os.environ['TURN_PASSWORD']
+
+
+def generate_uuid():
+    return str(uuid4())
 
 
 app = FastAPI()
@@ -48,14 +53,49 @@ async def get_turn_server():
 
 
 class WebsocketMessageType(str, Enum):
+    CONNECT = 'connect'
     PING = 'ping'
     PONG = 'pong'
-    ALERT = 'alert'
+    SIGNALING = 'signaling'
+    ROOM_JOIN = 'roomJoin'
+    ROOM_DROP = 'roomDrop'
+    PEER_JOIN = 'peerJoin'
+    PEER_DROP = 'peerDrop'
+    NULL_RESPONSE = 'null'
 
 
 class WebsocketMessage(BaseModel):
     type: WebsocketMessageType
+    id: Optional[str] = None
     data: Any = None
+
+
+class WebsocketConnectData(BaseModel):
+    connId: str
+
+
+class SignalingMessageType(str, Enum):
+    CANDIDATE = "candidate"
+    OFFER = "offer"
+    ANSWER = "answer"
+
+
+class SignalingMessage(BaseModel):
+    connId: str
+    type: SignalingMessageType
+    data: Any
+
+
+class RoomJoinData(BaseModel):
+    roomId: str
+
+
+class PeerJoinData(BaseModel):
+    connId: str
+
+
+class PeerDropData(BaseModel):
+    connId: str
 
 
 pools: dict[str, set[Connection]] = {}
@@ -64,17 +104,80 @@ pools: dict[str, set[Connection]] = {}
 @dataclass
 class Connection:
     socket: WebSocket
-    pools: set[str] = field(default_factory=set)
+    pool_ids: set[str] = field(default_factory=set)
+    room_id: Optional[str] = None
+    conn_id: str = field(default_factory=generate_uuid)
 
     def __hash__(self):
         return hash(id(self))
 
-    async def handle_request(self, request: WebsocketMessage):
+    async def handle_request(self, request: WebsocketMessage) -> WebsocketMessage | None:
         if request.type == WebsocketMessageType.PING:
             await self.send_message(WebsocketMessage(type=WebsocketMessageType.PONG))
+        elif request.type == WebsocketMessageType.ROOM_JOIN:
+            room_join_data = RoomJoinData.model_validate(request.data)
+            if self.room_id != None:
+                await self.room_drop()
+            self.room_id = room_join_data.roomId
+            await self.room_join()
+        elif request.type == WebsocketMessageType.ROOM_DROP:
+            await self.room_drop()
+        elif request.type == WebsocketMessageType.SIGNALING:
+            signalingMessage: SignalingMessage = request.data
+            dest_conn_id = signalingMessage.connId
+            signalingMessage.connId = self.conn_id
+            await websocket_broadcast(WebsocketMessage(
+                type=WebsocketMessageType.SIGNALING,
+                data=signalingMessage,
+            ), pool_id=dest_conn_id)
 
     async def send_message(self, message: WebsocketMessage):
         await self.socket.send_json(message.model_dump(mode="json"))
+
+    async def room_join(self):
+        tasks = []
+        tasks.push(websocket_broadcast(WebsocketMessage(
+            type=WebsocketMessageType.PEER_JOIN,
+            data=PeerJoinData(connId=self.conn_id)
+        ), pool_id=self.room_id))
+        for peer in pools.get(self.room_id, ()):
+            tasks.push(self.send_message(WebsocketMessage(
+                type=WebsocketMessageType.PEER_JOIN,
+                data=PeerJoinData(peer.conn_id)
+            )))
+        self.add_pool(self.room_id)
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def room_drop(self):
+        self.drop_pool(self.room_id)
+        await websocket_broadcast(WebsocketMessage(
+            type=WebsocketMessageType.PEER_DROP,
+            data=PeerDropData(connId=self.conn_id)
+        ), pool_id=self.room_id)
+        self.room_id = None
+
+    def add_pool(self, pool_id: str):
+        pool = pools.get(pool_id, None)
+        if pool is None:
+            pool = set()
+            pools[pool_id] = pool
+        pool.add(self)
+        self.pool_ids.add(pool_id)
+
+    def drop_pool(self, pool_id: str):
+        pool = pools.get(pool_id, None)
+        if pool is None:
+            return
+        pool.discard(self)
+        if len(pool) == 0:
+            pools.pop(pool_id, None)
+        self.pool_ids.discard(pool_id)
+
+    def cleanup(self):
+        if self.room_id:
+            self.room_drop()
+        for pool_id in tuple(self.pool_ids):
+            self.drop_pool(pool_id)
 
 
 @app.websocket("/api/ws")
@@ -83,24 +186,39 @@ async def alerts_websocket(websocket: WebSocket):
 
     connection = Connection(websocket)
     connection.add_pool('*')
+    connection.add_pool(connection.conn_id)
 
     try:
+        await connection.send_message(
+            type=WebsocketMessageType.CONNECT,
+            data=WebsocketConnectData(connId=connection.conn_id),
+        )
         while True:
-            await connection.handle_request(WebsocketMessage.model_validate(await connection.socket.receive_json()))
+            request = WebsocketMessage.model_validate(await connection.socket.receive_json())
+            response = await connection.handle_request(request)
+            if request.id is not None:
+                if response is None:
+                    response = WebsocketMessage(type=WebsocketMessageType.NULL_RESPONSE)
+                response.id = request.id
+                await connection.send_message(response)
     except starlette.websockets.WebSocketDisconnect:
         pass
     except ValidationError:
         pass
     finally:
-        alert_connections.discard(connection)
+        connection.cleanup()
 
 
 async def websocket_broadcast(message: WebsocketMessage, pool_id: str = '*'):
+    pool = pools.get(pool_id, None)
+    if pool is None:
+        return
+
     serialized_message = message.model_dump(mode="json")
     attempts = []
-    for connection in alert_connections:
+    for connection in pool:
         try:
             attempts.append(connection.socket.send_json(serialized_message))
         except:
             pass
-    await asyncio.gather(*attempts)
+    await asyncio.gather(*attempts, return_exceptions=True)

@@ -36,10 +36,38 @@ export async function getTurnServerInfo(): Promise<TurnServerInfo> {
     return await request("GET", "/turn-server");
 }
 
+export enum WebsocketMessageType {
+    CONNECT = 'connect',
+    PING = 'ping',
+    PONG = 'pong',
+    SIGNALING = 'signaling',
+    ROOM_JOIN = 'roomJoin',
+    ROOM_DROP = 'roomDrop',
+    PEER_JOIN = 'peerJoin',
+    PEER_DROP = 'peerDrop',
+};
+
+
+export type ConnectData = {
+    connId: string;
+}
+
+export type RoomJoinData = {
+    roomId: string;
+};
+
+export type PeerJoinData = {
+    connId: string;
+};
+
+export type PeerDropData = {
+    connId: string;
+};
+
 
 export type WebsocketMessage = {
     id?: number;
-    type: string;
+    type: WebsocketMessageType;
     data: any;
 };
 
@@ -108,7 +136,7 @@ export class WebsocketService {
                 this.socket = new WebSocket(websocketUrl);
                 this.socket.onmessage = ev => {
                     const message: WebsocketMessage = JSON.parse(ev.data);
-                    if (message.type === "ping") {
+                    if (message.type === WebsocketMessageType.PONG) {
                         return;
                     }
                     if (message.id) {
@@ -137,7 +165,7 @@ export class WebsocketService {
                 }
             }
             await sleep(5000);
-            this.rawSend({type: "ping", data: null});
+            this.rawSend({type: WebsocketMessageType.PING, data: null});
         }
     }
 
