@@ -49,7 +49,10 @@ app.whenReady().then(() => {
 
     ipcMain.handle('getScreens', async (event) => {
         const results = [];
-        for (const source of await desktopCapturer.getSources({types: ["screen", "window"]})) {
+        for (const source of await desktopCapturer.getSources({
+            types: ["screen", "window"],
+            thumbnailSize: {height: 256, width: 256},
+        })) {
             results.push({
                 id: source.id,
                 type: source.id.split(":")[0],

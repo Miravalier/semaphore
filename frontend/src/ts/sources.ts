@@ -21,28 +21,111 @@ export function isElectron(): boolean {
 
 
 export async function getMicrophoneStream(): Promise<MediaStream> {
-    return await navigator.mediaDevices.getUserMedia({
-        audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: false,
-        },
-    });
+    if (isElectron()) {
+        const dialogResult = new Future<{audioId: string}>();
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const dialog = document.body.appendChild(Elements.div("dialog"));
+        const audioSelect = dialog.appendChild(document.createElement("select"));
+        for (const device of devices) {
+            if (device.kind === "audioinput") {
+                const audioOption = audioSelect.appendChild(document.createElement("option"));
+                audioOption.value = device.deviceId;
+                audioOption.textContent = device.label;
+            }
+        }
+        dialog.appendChild(Elements.button([], "Join Call", () => {
+            dialogResult.resolve({audioId: audioSelect.value});
+        }));
+        const {audioId} = await dialogResult;
+        dialog.remove();
+
+        return await navigator.mediaDevices.getUserMedia({
+            audio: {
+                deviceId: {exact: audioId},
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: {exact: false},
+            }
+        });
+    } else {
+        return await navigator.mediaDevices.getUserMedia({
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: {exact: false},
+            },
+        });
+    }
 }
 
 
 export async function getVideoStream(): Promise<MediaStream> {
-    try {
-        return await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: false,
-            },
-        });
-    } catch {
-        return await getMicrophoneStream();
+    if (isElectron()) {
+        const dialogResult = new Future<{audioId: string, videoId: string}>();
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const dialog = document.body.appendChild(Elements.div("dialog"));
+        const audioSelect = dialog.appendChild(document.createElement("select"));
+        const videoSelect = dialog.appendChild(document.createElement("select"));
+        const noVideoOption = videoSelect.appendChild(document.createElement("option"));
+        noVideoOption.value = "";
+        noVideoOption.textContent = "None";
+        const deviceMap: {[id: string]: MediaDeviceInfo} = {};
+        for (const device of devices) {
+            const uuid = crypto.randomUUID();
+            deviceMap[uuid] = device;
+            if (device.kind === "audioinput") {
+                const audioOption = audioSelect.appendChild(document.createElement("option"));
+                audioOption.value = uuid;
+                audioOption.textContent = device.label;
+            } else if (device.kind === "videoinput") {
+                const videoOption = videoSelect.appendChild(document.createElement("option"));
+                videoOption.value = uuid;
+                videoOption.textContent = device.label;
+            }
+        }
+        dialog.appendChild(Elements.button([], "Join Call", () => {
+            dialogResult.resolve({audioId: audioSelect.value, videoId: videoSelect.value});
+        }));
+        const {audioId, videoId} = await dialogResult;
+        const audioDevice = deviceMap[audioId];
+        const videoDevice = deviceMap[videoId];
+        dialog.remove();
+
+        if (videoId === "") {
+            return await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    deviceId: {exact: audioDevice.deviceId},
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: {exact: false},
+                },
+            });
+        } else {
+            return await navigator.mediaDevices.getUserMedia({
+                video: {
+                    deviceId: {exact: videoDevice.deviceId},
+                },
+                audio: {
+                    deviceId: {exact: audioDevice.deviceId},
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: {exact: false},
+                },
+            });
+        }
+    } else {
+        try {
+            return await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: {exact: false},
+                },
+            });
+        } catch {
+            return await getMicrophoneStream();
+        }
     }
 }
 
@@ -68,20 +151,20 @@ export async function getScreenShare(): Promise<MediaStream> {
             audio: {
                 echoCancellation: false,
                 noiseSuppression: false,
-                autoGainControl: false,
+                autoGainControl: {exact: false},
             },
             video: {
-                width: 1280,
-                height: 960,
-                frameRate: 30
-            }
+                width: 1920,
+                height: 1080,
+                frameRate: 15
+            },
         });
     } else {
         return await navigator.mediaDevices.getDisplayMedia({
             audio: {
                 echoCancellation: false,
                 noiseSuppression: false,
-                autoGainControl: false,
+                autoGainControl: {exact: false},
             },
             video: true,
         });

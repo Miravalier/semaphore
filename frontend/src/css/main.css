@@ -53,6 +53,37 @@ video {
     margin: 0;
     padding: 0;
     display: flex;
-    flex-flow: column nowrap;
+    flex-flow: row wrap;
     z-index: 1;
+    overflow-y: auto;
+    align-items: center;
+    justify-content: space-evenly;
+}
+
+.dialog input, .dialog select, .dialog option {
+    color: black;
+}
+
+.dialog .screen {
+    margin: 4px;
+    padding: 4px;
+    background: #ffffff14;
+    border-radius: 8px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.dialog .screen:hover {
+    background: #ffffff3b;
+}
+
+.dialog .screen .thumbnail {
+    height: 256px;
+    width: 256px;
+    object-fit: contain;
+    background: black;
+}
+
+.dialog .screen .name {
+    width: 256px;
 }
