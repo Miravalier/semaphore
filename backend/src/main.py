@@ -173,9 +173,9 @@ class Connection:
             pools.pop(pool_id, None)
         self.pool_ids.discard(pool_id)
 
-    def cleanup(self):
+    async def cleanup(self):
         if self.room_id:
-            self.room_drop()
+            await self.room_drop()
         for pool_id in tuple(self.pool_ids):
             self.drop_pool(pool_id)
 
@@ -208,7 +208,7 @@ async def alerts_websocket(websocket: WebSocket):
     except ValidationError as e:
         print("ValidationError", connection.conn_id, e.errors())
     finally:
-        connection.cleanup()
+        await connection.cleanup()
         print("Connection Closed", connection.conn_id)
 
 

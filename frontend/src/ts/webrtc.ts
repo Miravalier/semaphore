@@ -15,21 +15,22 @@ export class SignalService {
     peerConnId: string;
     websocketService: Api.WebsocketService;
     messageHandlers: MessageHandler[];
+    parentHandler: Api.WebsocketHandler;
 
     constructor(peerConnId: string, websocketService: Api.WebsocketService) {
         this.peerConnId = peerConnId;
         this.websocketService = websocketService;
-        this.websocketService.addMessageHandler(this.onParentMessage);
-    }
-
-    onParentMessage(message: Api.WebsocketMessage) {
-        const subMessage: SignalingMessage = message.data;
-        if (subMessage.connId != this.peerConnId) {
-            return;
+        this.messageHandlers = [];
+        this.parentHandler = (message: Api.WebsocketMessage) => {
+            const subMessage: SignalingMessage = message.data;
+            if (subMessage.connId != this.peerConnId) {
+                return;
+            }
+            for (const subHandler of this.messageHandlers) {
+                subHandler(subMessage);
+            }
         }
-        for (const subHandler of this.messageHandlers) {
-            subHandler(subMessage);
-        }
+        this.websocketService.addMessageHandler(this.parentHandler);
     }
 
     addMessageHandler(handler: MessageHandler) {
@@ -49,12 +50,12 @@ export class SignalService {
     }
 
     close() {
-        this.websocketService.removeMessageHandler(this.onParentMessage);
+        this.websocketService.removeMessageHandler(this.parentHandler);
     }
 }
 
 
-export async function createPeerConnection(peerConnId: string, websocketService: Api.WebsocketService, localStream?: MediaStream, remoteTarget?: HTMLVideoElement): Promise<RTCPeerConnection> {
+export async function createPeerConnection(caller: boolean, peerConnId: string, websocketService: Api.WebsocketService, localStream?: MediaStream, remoteTarget?: HTMLVideoElement): Promise<RTCPeerConnection> {
     const turnServerInfo = await Api.getTurnServerInfo();
     const iceConfiguration = {
         iceServers: [
@@ -67,11 +68,17 @@ export async function createPeerConnection(peerConnId: string, websocketService:
     };
 
     const peerConnection = new RTCPeerConnection(iceConfiguration);
+    const pendingCandidates = [];
+    let remoteDescriptionSet = false;
 
     const signalService = new SignalService(peerConnId, websocketService);
     signalService.addMessageHandler(async (message: SignalingMessage) => {
         if (message.type === "candidate") {
-            peerConnection.addIceCandidate(message.data);
+            if (remoteDescriptionSet) {
+                peerConnection.addIceCandidate(message.data);
+            } else {
+                pendingCandidates.push(message.data);
+            }
         } else if (message.type === "offer") {
             await peerConnection.setRemoteDescription(message.data);
             await peerConnection.setLocalDescription(await peerConnection.createAnswer());
@@ -79,8 +86,16 @@ export async function createPeerConnection(peerConnId: string, websocketService:
                 type: "answer",
                 data: peerConnection.localDescription,
             });
+            remoteDescriptionSet = true;
+            for (const candidate of pendingCandidates) {
+                peerConnection.addIceCandidate(candidate);
+            }
         } else if (message.type === "answer") {
             await peerConnection.setRemoteDescription(message.data);
+            remoteDescriptionSet = true;
+            for (const candidate of pendingCandidates) {
+                peerConnection.addIceCandidate(candidate);
+            }
         }
     });
 
@@ -91,13 +106,15 @@ export async function createPeerConnection(peerConnId: string, websocketService:
         });
     };
 
-    peerConnection.onnegotiationneeded = async () => {
-        await peerConnection.setLocalDescription(await peerConnection.createOffer());
-        signalService.send({
-            type: "offer",
-            data: peerConnection.localDescription,
-        });
-    };
+    if (caller) {
+        peerConnection.onnegotiationneeded = async () => {
+            await peerConnection.setLocalDescription(await peerConnection.createOffer());
+            signalService.send({
+                type: "offer",
+                data: peerConnection.localDescription,
+            });
+        };
+    }
 
     peerConnection.ontrack = (event) => {
         if (remoteTarget) {

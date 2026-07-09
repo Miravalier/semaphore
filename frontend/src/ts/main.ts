@@ -10,6 +10,7 @@ type RoomPeer = {
     videoElement: HTMLVideoElement;
 };
 
+let localConnId: string = null as any;
 const roomId = "default";
 const websocketService: Api.WebsocketService = new Api.WebsocketService();
 const peers: {[connId: string]: RoomPeer} = {};
@@ -18,13 +19,20 @@ const peers: {[connId: string]: RoomPeer} = {};
 window.addEventListener("load", async () => {
     console.log("Semaphore App Loading ...");
 
+    websocketService.addMessageHandler(async (message) => {
+        if (message.type === Api.WebsocketMessageType.CONNECT) {
+            const connectData: Api.ConnectData = message.data;
+            localConnId = connectData.connId;
+        }
+    });
+    websocketService.init();
+
     const viewport = document.body.appendChild(Elements.div("viewport"));
-    viewport.appendChild(Elements.h1([], "Semaphore")).style.textAlign = 'center';
-
-    const startButton = viewport.appendChild(Elements.button([], "Start", async () => {
-        const screenShareStream = await getScreenShare();
-
+    const startButton = viewport.appendChild(Elements.button(["connect"], "Connect", async () => {
         startButton.disabled = true;
+        startButton.classList.add("hidden");
+
+        const screenShareStream = await getScreenShare();
 
         const localVideoElement = viewport.appendChild(document.createElement("video"));
         localVideoElement.autoplay = true;
@@ -38,23 +46,31 @@ window.addEventListener("load", async () => {
                 await websocketService.send({type: Api.WebsocketMessageType.ROOM_JOIN, data: {roomId}});
             } else if (message.type === Api.WebsocketMessageType.PEER_JOIN) {
                 const peerJoinData: Api.PeerJoinData = message.data;
+                if (peerJoinData.connId == localConnId) {
+                    return;
+                }
                 const remoteVideoElement = viewport.appendChild(document.createElement("video"));
                 remoteVideoElement.autoplay = true;
                 remoteVideoElement.onloadedmetadata = () => {
                     remoteVideoElement.play();
                 };
-                const peerConnection = await createPeerConnection(peerJoinData.connId, websocketService, screenShareStream, remoteVideoElement);
+                const peerConnection = await createPeerConnection(localConnId > peerJoinData.connId, peerJoinData.connId, websocketService, screenShareStream, remoteVideoElement);
                 peers[peerJoinData.connId] = {connId: peerJoinData.connId, connection: peerConnection, videoElement: remoteVideoElement};
             } else if (message.type === Api.WebsocketMessageType.PEER_DROP) {
                 const peerDropData: Api.PeerDropData = message.data;
+                if (peerDropData.connId == localConnId) {
+                    return;
+                }
                 const roomPeer = peers[peerDropData.connId];
+                if (!roomPeer) {
+                    return;
+                }
                 roomPeer.videoElement.remove();
                 roomPeer.connection.close();
                 roomPeer.connection.dispatchEvent(new CustomEvent("peerclose"));
                 delete peers[peerDropData.connId];
             }
         });
-
         await websocketService.send({type: Api.WebsocketMessageType.ROOM_JOIN, data: {roomId}});
     }));
 

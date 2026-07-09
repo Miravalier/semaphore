@@ -91,6 +91,9 @@ export class WebsocketService {
         this.running = true;
         this.pendingMessages = {};
         this.messageHandlers = [];
+    }
+
+    init() {
         this.worker();
     }
 
