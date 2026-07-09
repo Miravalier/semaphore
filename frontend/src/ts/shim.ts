@@ -38,7 +38,11 @@ export async function getScreenShare(): Promise<MediaStream> {
 
         await electronApi.selectScreen(screenId);
         return await navigator.mediaDevices.getDisplayMedia({
-            audio: true,
+            audio: {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+            },
             video: {
                 width: 1280,
                 height: 960,
@@ -47,7 +51,11 @@ export async function getScreenShare(): Promise<MediaStream> {
         });
     } else {
         return await navigator.mediaDevices.getDisplayMedia({
-            audio: true,
+            audio: {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+            },
             video: true,
         });
     }

@@ -43,6 +43,12 @@ window.addEventListener("load", async () => {
 
         websocketService.addMessageHandler(async (message) => {
             if (message.type === Api.WebsocketMessageType.CONNECT) {
+                for (const [connId, roomPeer] of Object.entries(peers)) {
+                    roomPeer.videoElement.remove();
+                    roomPeer.connection.close();
+                    roomPeer.connection.dispatchEvent(new CustomEvent("peerclose"));
+                    delete peers[connId];
+                }
                 await websocketService.send({type: Api.WebsocketMessageType.ROOM_JOIN, data: {roomId}});
             } else if (message.type === Api.WebsocketMessageType.PEER_JOIN) {
                 const peerJoinData: Api.PeerJoinData = message.data;
