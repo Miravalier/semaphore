@@ -23,6 +23,8 @@ export function isElectron(): boolean {
 export async function getMicrophoneStream(): Promise<MediaStream> {
     return await navigator.mediaDevices.getUserMedia({
         audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
             autoGainControl: false,
         },
     });
@@ -30,12 +32,18 @@ export async function getMicrophoneStream(): Promise<MediaStream> {
 
 
 export async function getVideoStream(): Promise<MediaStream> {
-    return await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: {
-            autoGainControl: false,
-        },
-    });
+    try {
+        return await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: false,
+            },
+        });
+    } catch {
+        return await getMicrophoneStream();
+    }
 }
 
 

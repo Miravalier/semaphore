@@ -35,6 +35,8 @@ window.addEventListener("load", async () => {
         const localStream = await Sources.getVideoStream();
 
         const localVideoElement = viewport.appendChild(document.createElement("video"));
+        localVideoElement.muted = true;
+        localVideoElement.defaultMuted = true;
         localVideoElement.autoplay = true;
         localVideoElement.srcObject = localStream;
         localVideoElement.onloadedmetadata = () => {
