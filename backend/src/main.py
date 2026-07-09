@@ -66,7 +66,7 @@ class WebsocketMessageType(str, Enum):
 
 class WebsocketMessage(BaseModel):
     type: WebsocketMessageType
-    id: Optional[str] = None
+    id: Optional[int] = None
     data: Any = None
 
 
@@ -123,7 +123,7 @@ class Connection:
         elif request.type == WebsocketMessageType.ROOM_DROP:
             await self.room_drop()
         elif request.type == WebsocketMessageType.SIGNALING:
-            signalingMessage: SignalingMessage = request.data
+            signalingMessage: SignalingMessage = SignalingMessage.model_validate(request.data)
             dest_conn_id = signalingMessage.connId
             signalingMessage.connId = self.conn_id
             await websocket_broadcast(WebsocketMessage(
@@ -136,14 +136,14 @@ class Connection:
 
     async def room_join(self):
         tasks = []
-        tasks.push(websocket_broadcast(WebsocketMessage(
+        tasks.append(websocket_broadcast(WebsocketMessage(
             type=WebsocketMessageType.PEER_JOIN,
             data=PeerJoinData(connId=self.conn_id)
         ), pool_id=self.room_id))
         for peer in pools.get(self.room_id, ()):
-            tasks.push(self.send_message(WebsocketMessage(
+            tasks.append(self.send_message(WebsocketMessage(
                 type=WebsocketMessageType.PEER_JOIN,
-                data=PeerJoinData(peer.conn_id)
+                data=PeerJoinData(connId=peer.conn_id)
             )))
         self.add_pool(self.room_id)
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -206,7 +206,7 @@ async def alerts_websocket(websocket: WebSocket):
     except starlette.websockets.WebSocketDisconnect:
         pass
     except ValidationError as e:
-        print("ValidationError", connection.conn_id, e.errors)
+        print("ValidationError", connection.conn_id, e.errors())
     finally:
         connection.cleanup()
         print("Connection Closed", connection.conn_id)
