@@ -20,6 +20,25 @@ export function isElectron(): boolean {
 }
 
 
+export async function getMicrophoneStream(): Promise<MediaStream> {
+    return await navigator.mediaDevices.getUserMedia({
+        audio: {
+            autoGainControl: false,
+        },
+    });
+}
+
+
+export async function getVideoStream(): Promise<MediaStream> {
+    return await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: {
+            autoGainControl: false,
+        },
+    });
+}
+
+
 export async function getScreenShare(): Promise<MediaStream> {
     if (isElectron()) {
         const screens = await electronApi.getScreens();

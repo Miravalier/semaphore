@@ -29,8 +29,10 @@ button:hover {
 }
 
 video {
+    background: black;
     flex: 1;
     overflow: hidden;
+    border-radius: 8px;
 }
 
 .viewport {
@@ -41,6 +43,8 @@ video {
     display: flex;
     flex-flow: column nowrap;
     z-index: 0;
+    row-gap: 2px;
+    padding: 2px;
 }
 
 .dialog {

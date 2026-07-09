@@ -1,5 +1,5 @@
 import * as Elements from "./elements";
-import { getScreenShare } from "./shim";
+import * as Sources from "./sources";
 import { createPeerConnection } from "./webrtc";
 import * as Api from "./api";
 
@@ -32,11 +32,11 @@ window.addEventListener("load", async () => {
         startButton.disabled = true;
         startButton.classList.add("hidden");
 
-        const screenShareStream = await getScreenShare();
+        const localStream = await Sources.getVideoStream();
 
         const localVideoElement = viewport.appendChild(document.createElement("video"));
         localVideoElement.autoplay = true;
-        localVideoElement.srcObject = screenShareStream;
+        localVideoElement.srcObject = localStream;
         localVideoElement.onloadedmetadata = () => {
             localVideoElement.play();
         };
@@ -60,7 +60,7 @@ window.addEventListener("load", async () => {
                 remoteVideoElement.onloadedmetadata = () => {
                     remoteVideoElement.play();
                 };
-                const peerConnection = await createPeerConnection(localConnId > peerJoinData.connId, peerJoinData.connId, websocketService, screenShareStream, remoteVideoElement);
+                const peerConnection = await createPeerConnection(localConnId > peerJoinData.connId, peerJoinData.connId, websocketService, localStream, remoteVideoElement);
                 peers[peerJoinData.connId] = {connId: peerJoinData.connId, connection: peerConnection, videoElement: remoteVideoElement};
             } else if (message.type === Api.WebsocketMessageType.PEER_DROP) {
                 const peerDropData: Api.PeerDropData = message.data;
