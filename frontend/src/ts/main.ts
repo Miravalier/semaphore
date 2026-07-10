@@ -88,68 +88,68 @@ window.addEventListener("load", async () => {
                 const peerConnection = await createPeerConnection(localConnId > peerJoinData.connId, peerJoinData.connId, websocketService);
                 peerConnection.ontrack = async (event) => {
                     const stream = event.streams[0];
-                    console.log("Streams", event.streams);
-                    console.log("Video Tracks", stream.getVideoTracks());
-                    console.log("Audio Tracks", stream.getAudioTracks());
-                    if (stream.getVideoTracks().length > 0) {
-                        remoteVideoElement.srcObject = event.streams[0];
-                    }
-                    const audioContext = new AudioContext();
-                    await audioContext.audioWorklet.addModule(noiseGateUrl);
+                    const track = event.track;
+                    if (track.kind === "video") {
+                        console.log("Received Video", track);
+                        remoteVideoElement.srcObject = stream;
+                    } else if (track.kind === "audio") {
+                        console.log("Received Audio", track);
+                        const audioContext = new AudioContext();
+                        await audioContext.audioWorklet.addModule(noiseGateUrl);
 
-                    const audioSource = audioContext.createMediaStreamSource(stream);
-                    console.log("B", audioSource.mediaStream.getAudioTracks());
-                    const audioChain: AudioNode[] = [audioSource];
+                        const audioSource = audioContext.createMediaStreamSource(stream);
+                        const audioChain: AudioNode[] = [audioSource];
 
-                    const highPassFilter = audioContext.createBiquadFilter();
-                    highPassFilter.type = 'highpass';
-                    highPassFilter.frequency.value = 100;
-                    audioChain.push(highPassFilter);
+                        const highPassFilter = audioContext.createBiquadFilter();
+                        highPassFilter.type = 'highpass';
+                        highPassFilter.frequency.value = 100;
+                        audioChain.push(highPassFilter);
 
-                    const lowPassFilter = audioContext.createBiquadFilter();
-                    lowPassFilter.type = 'lowpass';
-                    lowPassFilter.frequency.value = 9000;
-                    audioChain.push(lowPassFilter);
+                        const lowPassFilter = audioContext.createBiquadFilter();
+                        lowPassFilter.type = 'lowpass';
+                        lowPassFilter.frequency.value = 9000;
+                        audioChain.push(lowPassFilter);
 
-                    const noiseGateNode = new AudioWorkletNode(audioContext, 'noisegate-audio-worklet');
-                    /*
-                        {name: 'attack', defaultValue: 0.05, minValue: 0, maxValue: 0.1},
-                        {name: 'release', defaultValue: 0.05, minValue: 0, maxValue: 0.1},
-                        {name: 'threshold', defaultValue: -40, minValue: -100, maxValue: 0},
-                        {name: 'timeConstant', defaultValue: 0.0025, minValue: 0, maxValue: 0.1}
-                    */
-                    noiseGateNode.parameters.get("attack").value = 0.05;
-                    noiseGateNode.parameters.get("release").value = 0.05;
-                    noiseGateNode.parameters.get("threshold").value = -40;
-                    noiseGateNode.parameters.get("timeConstant").value = 0.0025;
-                    noiseGateNode.port.onmessage = (ev) => {
-                        if (ev.data.speaking) {
-                            remoteVideoContainer.classList.add("speaking");
-                        } else {
-                            remoteVideoContainer.classList.remove("speaking");
+                        const noiseGateNode = new AudioWorkletNode(audioContext, 'noisegate-audio-worklet');
+                        /*
+                            {name: 'attack', defaultValue: 0.05, minValue: 0, maxValue: 0.1},
+                            {name: 'release', defaultValue: 0.05, minValue: 0, maxValue: 0.1},
+                            {name: 'threshold', defaultValue: -40, minValue: -100, maxValue: 0},
+                            {name: 'timeConstant', defaultValue: 0.0025, minValue: 0, maxValue: 0.1}
+                        */
+                        noiseGateNode.parameters.get("attack").value = 0.05;
+                        noiseGateNode.parameters.get("release").value = 0.05;
+                        noiseGateNode.parameters.get("threshold").value = -40;
+                        noiseGateNode.parameters.get("timeConstant").value = 0.0025;
+                        noiseGateNode.port.onmessage = (ev) => {
+                            if (ev.data.speaking) {
+                                remoteVideoContainer.classList.add("speaking");
+                            } else {
+                                remoteVideoContainer.classList.remove("speaking");
+                            }
                         }
-                    }
-                    audioChain.push(noiseGateNode);
+                        audioChain.push(noiseGateNode);
 
-                    const gainNode = audioContext.createGain();
-                    gainNode.gain.value = 2;
-                    audioChain.push(gainNode);
+                        const gainNode = audioContext.createGain();
+                        gainNode.gain.value = 2;
+                        audioChain.push(gainNode);
 
-                    const mediaStreamDestination = audioContext.createMediaStreamDestination();
-                    audioChain.push(mediaStreamDestination);
+                        const mediaStreamDestination = audioContext.createMediaStreamDestination();
+                        audioChain.push(mediaStreamDestination);
 
-                    let previousNode: AudioNode | null = null;
-                    for (const currentNode of audioChain) {
-                        if (previousNode !== null) {
-                            previousNode.connect(currentNode);
+                        let previousNode: AudioNode | null = null;
+                        for (const currentNode of audioChain) {
+                            if (previousNode !== null) {
+                                previousNode.connect(currentNode);
+                            }
+                            previousNode = currentNode;
                         }
-                        previousNode = currentNode;
-                    }
 
-                    remoteAudioElement.srcObject = mediaStreamDestination.stream;
+                        remoteAudioElement.srcObject = mediaStreamDestination.stream;
+                    }
                 };
                 for (const track of localStream.getTracks()) {
-                    console.log("Adding Track to Send", track);
+                    console.log("Adding Track to Send", track, localStream);
                     peerConnection.addTrack(track, localStream);
                 }
                 peers[peerJoinData.connId] = {connId: peerJoinData.connId, connection: peerConnection, videoContainer: remoteVideoContainer};
