@@ -12,6 +12,10 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * Significant changes made by Miravalier in July 2026
+ * - Updated to work with 2026 AudioWorklet APIs
+ * - Added speak/silent port messages
  */
 
 const SPEAK_STATE_TIMEOUT = 1/30;
