@@ -89,9 +89,9 @@ window.addEventListener("load", async () => {
                 peerConnection.ontrack = async (event) => {
                     const stream = event.streams[0];
                     const track = event.track;
+                    remoteVideoElement.srcObject = stream;
                     if (track.kind === "video") {
                         console.log("Received Video", track);
-                        remoteVideoElement.srcObject = stream;
                     } else if (track.kind === "audio") {
                         console.log("Received Audio", track);
                         const audioContext = new AudioContext();
