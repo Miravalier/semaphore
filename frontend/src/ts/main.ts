@@ -87,11 +87,14 @@ window.addEventListener("load", async () => {
 
                 const peerConnection = await createPeerConnection(localConnId > peerJoinData.connId, peerJoinData.connId, websocketService);
                 peerConnection.ontrack = async (event) => {
-                    remoteVideoElement.srcObject = event.streams[0];
+                    const stream = event.streams[0];
+                    if (stream.getVideoTracks().length > 0) {
+                        remoteVideoElement.srcObject = event.streams[0];
+                    }
                     const audioContext = new AudioContext();
                     await audioContext.audioWorklet.addModule(noiseGateUrl);
 
-                    const audioSource = audioContext.createMediaStreamSource(event.streams[0]);
+                    const audioSource = audioContext.createMediaStreamSource(stream);
                     const audioChain: AudioNode[] = [audioSource];
 
                     const highPassFilter = audioContext.createBiquadFilter();
