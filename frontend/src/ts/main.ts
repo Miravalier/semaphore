@@ -90,10 +90,7 @@ window.addEventListener("load", async () => {
                     const stream = event.streams[0];
                     const track = event.track;
                     remoteVideoElement.srcObject = stream;
-                    if (track.kind === "video") {
-                        console.log("Received Video", track);
-                    } else if (track.kind === "audio") {
-                        console.log("Received Audio", track);
+                    if (track.kind === "audio") {
                         const audioContext = new AudioContext();
                         await audioContext.audioWorklet.addModule(noiseGateUrl);
 
