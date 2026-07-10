@@ -102,7 +102,7 @@ class NoiseGateAudioWorklet extends AudioWorkletProcessor {
                     this.weights_ = new Float32Array(sampleCount);
                 }
                 // Perform actual gating on this channel
-                this.detectLevel_(absoluteChannelId, inputArray, alpha);
+                this.detectLevel_(absoluteChannelId, sampleCount, inputArray, alpha);
                 this.computeWeights_(absoluteChannelId, sampleCount, attack, release, threshold);
                 for (let j = 0; j < sampleCount; j++) {
                     outputArray[j] = this.weights_[j] * inputArray[j];
@@ -117,20 +117,21 @@ class NoiseGateAudioWorklet extends AudioWorkletProcessor {
     /**
      * Compute an envelope follower for the signal.
      * @param {number} channelId Index into the previousLevels_ array.
+     * @param {number} sampleCount Number of samples in this batch.
      * @param {Float32Array} channelData Input channel data.
      * @param {number} alpha Higher value is more smooth but with more delay.
      */
-    detectLevel_(channelId, channelData, alpha) {
+    detectLevel_(channelId, sampleCount, channelData, alpha) {
         // The signal level is determined by filtering the square of the signal
         // with exponential smoothing. See
         // http://www.aes.org/e-lib/browse.cfm?elib=16354 for details.
         this.envelope_[0] = alpha * this.previousLevels_[channelId] + (1 - alpha) * Math.pow(channelData[0], 2);
 
-        for (let j = 1; j < channelData.length; j++) {
+        for (let j = 1; j < sampleCount; j++) {
             this.envelope_[j] = alpha * this.envelope_[j - 1] + (1 - alpha) * Math.pow(channelData[j], 2);
         }
 
-        this.previousLevels_[channelId] = this.envelope_[this.envelope_.length - 1];
+        this.previousLevels_[channelId] = this.envelope_[sampleCount - 1];
     }
 
     /**
