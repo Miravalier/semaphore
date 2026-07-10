@@ -91,10 +91,23 @@ registerProcessor('noisegate-audio-worklet',
         this.release = parameters.release[0];
         this.threshold = parameters.threshold[0];
 
+        if (inputs.length == 0 || outputs.length == 0) {
+            return true;
+        }
+
         let input = inputs[0];
-        let inputChannelData = input[0]
         let output = outputs[0];
+
+        if (input.length == 0 || output.length == 0) {
+            return true;
+        }
+
+        let inputChannelData = input[0]
         let outputChannelData = output[0];
+
+        if (inputChannelData.length == 0 || outputChannelData.length == 0) {
+            return true;
+        }
 
         let envelope = this.detectLevel_(inputChannelData);
         let weights = this.computeWeights_(envelope);
