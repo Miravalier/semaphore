@@ -70,6 +70,12 @@ window.addEventListener("load", async () => {
 
                 const remoteControlRegion = remoteVideoContainer.appendChild(document.createElement("div"));
                 remoteControlRegion.classList.add("control-region");
+                const volumeInput = remoteControlRegion.appendChild(document.createElement("input"));
+                volumeInput.type = "range";
+                volumeInput.min = "0";
+                volumeInput.max = "100";
+                volumeInput.step = "any";
+                volumeInput.value = "50";
 
                 const remoteVideoElement = remoteVideoContainer.appendChild(document.createElement("video"));
                 remoteVideoElement.muted = true;
@@ -130,6 +136,10 @@ window.addEventListener("load", async () => {
                         const gainNode = audioContext.createGain();
                         gainNode.gain.value = 2;
                         audioChain.push(gainNode);
+                        volumeInput.addEventListener("input", () => {
+                            const targetValue = parseFloat(volumeInput.value) / 10;
+                            gainNode.gain.setTargetAtTime(targetValue, audioContext.currentTime, 0.015);
+                        });
 
                         const mediaStreamDestination = audioContext.createMediaStreamDestination();
                         audioChain.push(mediaStreamDestination);
