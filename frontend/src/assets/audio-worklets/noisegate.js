@@ -26,94 +26,89 @@ const SPEAK_STATE_TIMEOUT = 1/30;
  * @description A noise gate allows audio signals to pass only when the
  * registered volume is above a specified threshold.
  */
-registerProcessor('noisegate-audio-worklet',
-                  class NoiseGateAudioWorklet extends AudioWorkletProcessor{
-
+class NoiseGateAudioWorklet extends AudioWorkletProcessor {
     static get parameterDescriptors() {
         return [
-        // An upper bound of 100ms for attack and release is sufficiently high
-        // to enable smooth transitions between sound and silence.
-        // The default value of 50ms has been set experimentally to minimize
-        // glitches in the demo.
-        {name: 'attack', defaultValue: 0.05, minValue: 0, maxValue: 0.1},
-        {name: 'release', defaultValue: 0.05, minValue: 0, maxValue: 0.1},
-        // The maximum threshold is 0 dBFS, and the minimum is -100 dBFS since
-        // the sound is inaudible at that level. The default is set to -40
-        // as an appropriate setting for the demo.
-        {name: 'threshold', defaultValue: -40, minValue: -100, maxValue: 0},
-        // The default timeConstant has been set experimentally to 0.0025s to
-        // balance delay for high frequency suppression. The maximum value is set
-        // somewhat arbitrarily at 0.1 since the envelope is very delayed at
-        // values beyond this.
-        {name: 'timeConstant', defaultValue: 0.0025, minValue: 0, maxValue: 0.1}
+            // An upper bound of 100ms for attack and release is sufficiently high
+            // to enable smooth transitions between sound and silence.
+            // The default value of 50ms has been set experimentally to minimize
+            // glitches in the demo.
+            {name: 'attack', defaultValue: 0.05, minValue: 0, maxValue: 0.1},
+            {name: 'release', defaultValue: 0.05, minValue: 0, maxValue: 0.1},
+            // The maximum threshold is 0 dBFS, and the minimum is -100 dBFS since
+            // the sound is inaudible at that level. The default is set to -40
+            // as an appropriate setting for the demo.
+            {name: 'threshold', defaultValue: -40, minValue: -100, maxValue: 0},
+            // The default timeConstant has been set experimentally to 0.0025s to
+            // balance delay for high frequency suppression. The maximum value is set
+            // somewhat arbitrarily at 0.1 since the envelope is very delayed at
+            // values beyond this.
+            {name: 'timeConstant', defaultValue: 0.0025, minValue: 0, maxValue: 0.1}
         ];
     }
 
     constructor() {
         super();
 
-        // The previous envelope level, a float representing signal amplitude.
-        this.previousLevel_ = 0;
+        // The previous envelope levels by channel id, floats representing signal amplitude.
+        this.previousLevels_ = new Float32Array(128);
 
-        // The last weight (between 0 and 1) assigned, where 1 means the gate
+        // The last weights [0..1] by channel id, where 1 means the gate
         // is open and 0 means it is closed and the sample in the output buffer is
         // muted. When attacking, the weight will linearly decrease from 1 to 0, and
-        // when releasing the weight linearly increase from 0 to 1.
-        this.previousWeight_ = 1.0;
+        // when releasing the weight will linearly increase from 0 to 1.
+        this.previousWeights_ = new Float32Array(128);
+
         this.envelope_ = new Float32Array(128);
         this.weights_ = new Float32Array(128);
-        this.sampleRate = sampleRate;
+
         this.lastStateConfirm_ = currentTime;
         this.speaking_ = false;
     }
 
     /**
      * Control the dynamic range of input based on specified threshold.
-     * @param {any[]} input Input audio data
-     * @param {any[]} output Output audio data
+     * @param {Float32Array[][]} inputList Input audio data
+     * @param {Float32Array[][]} outputList Output audio data
      * @param {Object} parameters K-rate audio params.
      * @param {Number[]} parameters.attack Seconds for gate to fully close.
      * @param {Number[]} parameters.release Seconds for gate to fully open.
-     * @param {Number[]} parameters.timeConstant Seconds for envelope follower's
-     *                                         smoothing filter delay.
-     * @param {Number[]} parameters.threshold Decibel level beneath which sound is
-     *                                      muted.
+     * @param {Number[]} parameters.timeConstant Seconds for envelope follower's smoothing filter delay.
+     * @param {Number[]} parameters.threshold Decibel level beneath which sound is muted.
      */
-    process(inputs, outputs, parameters) {
+    process(inputList, outputList, parameters) {
         // Alpha controls a tradeoff between the smoothness of the
         // envelope and its delay, with a higher value giving more smoothness at
         // the expense of delay and vice versa.
-        this.alpha_ = this.getAlphaFromTimeConstant_(parameters.timeConstant[0], this.sampleRate);
+        const alpha = this.getAlphaFromTimeConstant_(parameters.timeConstant[0], sampleRate);
+        const attack = parameters.attack[0];
+        const release = parameters.release[0];
+        const threshold = parameters.threshold[0];
 
-        // K-rate: use the first element of parameter data to process each render
-        // quantum.
-        this.attack = parameters.attack[0];
-        this.release = parameters.release[0];
-        this.threshold = parameters.threshold[0];
+        let absoluteChannelId = 0;
+        const sourceCount = Math.min(inputList.length, outputList.length);
+        for (let sourceNum = 0; sourceNum < sourceCount; sourceNum++) {
+            const input = inputList[sourceNum];
+            const output = outputList[sourceNum];
 
-        if (inputs.length == 0 || outputs.length == 0) {
-            return true;
-        }
-
-        let input = inputs[0];
-        let output = outputs[0];
-
-        if (input.length == 0 || output.length == 0) {
-            return true;
-        }
-
-        let inputChannelData = input[0]
-        let outputChannelData = output[0];
-
-        if (inputChannelData.length == 0 || outputChannelData.length == 0) {
-            return true;
-        }
-
-        let envelope = this.detectLevel_(inputChannelData);
-        let weights = this.computeWeights_(envelope);
-
-        for (let j = 0; j < inputChannelData.length; j++) {
-            outputChannelData[j] = weights[j] * inputChannelData[j];
+            const channelCount = Math.min(input.length, output.length);
+            for (let sourceChannelId = 0; sourceChannelId < channelCount; sourceChannelId++) {
+                const inputArray = input[sourceChannelId];
+                const outputArray = output[sourceChannelId];
+                const sampleCount = Math.min(inputArray.length, outputArray.length);
+                // Make sure envelope and weights are large enough for the sample size
+                if (this.envelope_.length < sampleCount) {
+                    this.envelope_ = new Float32Array(sampleCount);
+                    this.weights_ = new Float32Array(sampleCount);
+                }
+                // Perform actual gating on this channel
+                this.detectLevel_(absoluteChannelId, inputArray, alpha);
+                this.computeWeights_(absoluteChannelId, sampleCount, attack, release, threshold);
+                for (let j = 0; j < sampleCount; j++) {
+                    outputArray[j] = this.weights_[j] * inputArray[j];
+                }
+                absoluteChannelId++;
+            }
         }
 
         return true;
@@ -121,33 +116,32 @@ registerProcessor('noisegate-audio-worklet',
 
     /**
      * Compute an envelope follower for the signal.
+     * @param {number} channelId Index into the previousLevels_ array.
      * @param {Float32Array} channelData Input channel data.
-     * @return {Float32Array} The level of the signal.
+     * @param {number} alpha Higher value is more smooth but with more delay.
      */
-    detectLevel_(channelData) {
+    detectLevel_(channelId, channelData, alpha) {
         // The signal level is determined by filtering the square of the signal
         // with exponential smoothing. See
         // http://www.aes.org/e-lib/browse.cfm?elib=16354 for details.
-        this.envelope_[0] = this.alpha_ * this.previousLevel_ +
-            (1 - this.alpha_) * Math.pow(channelData[0], 2);
+        this.envelope_[0] = alpha * this.previousLevels_[channelId] + (1 - alpha) * Math.pow(channelData[0], 2);
 
         for (let j = 1; j < channelData.length; j++) {
-        this.envelope_[j] = this.alpha_ * this.envelope_[j - 1] +
-            (1 - this.alpha_) * Math.pow(channelData[j], 2);
+            this.envelope_[j] = alpha * this.envelope_[j - 1] + (1 - alpha) * Math.pow(channelData[j], 2);
         }
-        this.previousLevel_ = this.envelope_[this.envelope_.length - 1];
 
-        return this.envelope_;
+        this.previousLevels_[channelId] = this.envelope_[this.envelope_.length - 1];
     }
 
     /**
-     * Computes an array of weights which determines what samples are silenced.
-     * @param {Float32Array} envelope The output from envelope follower.
-     * @return {Float32Array} weights Numbers in the range 0 to 1 set in
-     *                                accordance with the threshold, the envelope,
-     *                                and attack and release.
+     * Computes an array of weights which determines the output level of samples.
+     * @param {number} channelId Index into the previousWeights_ array.
+     * @param {number} sampleCount Number of samples in this batch.
+     * @param {number} attack Seconds for gate to fully close.
+     * @param {number} release Seconds for gate to fully open.
+     * @param {number} threshold Decibel level beneath which sound is muted.
      */
-    computeWeights_(envelope) {
+    computeWeights_(channelId, sampleCount, attack, release, threshold) {
         // When attack or release are 0, the weight changes between 0 and 1
         // in one step.
         let attackSteps = 1;
@@ -158,46 +152,48 @@ registerProcessor('noisegate-audio-worklet',
         // When attack or release are > 0, the associated weight changes between 0
         // and 1 in the number of steps corresponding to the millisecond attack
         // or release time parameters.
-        if (this.attack > 0) {
-            attackSteps = Math.ceil(this.sampleRate * this.attack);
+        if (attack > 0) {
+            attackSteps = Math.ceil(sampleRate * attack);
             attackLossPerStep = 1 / attackSteps;
         }
-        if (this.release > 0) {
-            releaseSteps = Math.ceil(this.sampleRate * this.release);
+        if (release > 0) {
+            releaseSteps = Math.ceil(sampleRate * release);
             releaseGainPerStep = 1 / releaseSteps;
         }
 
         let scaledEnvelopeValue;
         let weight;
+        let previousWeight = this.previousWeights_[channelId];
 
         // The array of weights will be between 0 and 1 depending on if the
         // noise gate is open, attacking, releasing, or closed.
-        for (let i = 0; i < envelope.length; i++) {
+        for (let i = 0; i < sampleCount; i++) {
             // For sine waves, the envelope eventually reaches an average power of
             // a^2 / 2. Sine waves are therefore scaled back to the original
             // amplitude, but other waveforms or constant sources can only be
             // approximated.
-            scaledEnvelopeValue = NoiseGateAudioWorklet.toDecibel(2 * envelope[i]);
+            scaledEnvelopeValue = NoiseGateAudioWorklet.toDecibel(2 * this.envelope_[i]);
 
-            if (scaledEnvelopeValue < this.threshold) {
-                weight = this.previousWeight_ - attackLossPerStep;
+            if (scaledEnvelopeValue < threshold) {
+                weight = previousWeight - attackLossPerStep;
                 this.weights_[i] = Math.max(weight, 0);
             } else {
-                weight = this.previousWeight_ + releaseGainPerStep;
+                weight = previousWeight + releaseGainPerStep;
                 this.weights_[i] = Math.min(weight, 1);
             }
 
-            this.previousWeight_ = this.weights_[i];
+            previousWeight = this.weights_[i];
             if (this.speaking_) {
-                if (this.previousWeight_ > 0) {
+                if (previousWeight > 0) {
                     this.lastStateConfirm_ = currentTime;
                 }
             } else {
-                if (this.previousWeight_ == 0) {
+                if (previousWeight == 0) {
                     this.lastStateConfirm_ = currentTime;
                 }
             }
         }
+        this.previousWeights_[channelId] = previousWeight;
 
         if (currentTime - this.lastStateConfirm_ > SPEAK_STATE_TIMEOUT) {
             this.speaking_ = !this.speaking_;
@@ -205,7 +201,6 @@ registerProcessor('noisegate-audio-worklet',
                 "speaking": this.speaking_,
             });
         }
-        return this.weights_;
     }
 
     /**
@@ -228,4 +223,6 @@ registerProcessor('noisegate-audio-worklet',
     static toDecibel(powerLevel) {
         return 10 * Math.log10(powerLevel);
     }
-});
+}
+
+registerProcessor('noisegate-audio-worklet', NoiseGateAudioWorklet);
