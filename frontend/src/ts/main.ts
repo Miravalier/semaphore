@@ -38,6 +38,9 @@ window.addEventListener("load", async () => {
         const localVideoContainer = viewport.appendChild(document.createElement("div"));
         localVideoContainer.classList.add("video-container");
 
+        const localControlRegion = localVideoContainer.appendChild(document.createElement("div"));
+        localControlRegion.classList.add("control-region");
+
         const localVideoElement = localVideoContainer.appendChild(document.createElement("video"));
         localVideoElement.muted = true;
         localVideoElement.defaultMuted = true;
@@ -64,6 +67,9 @@ window.addEventListener("load", async () => {
 
                 const remoteVideoContainer = viewport.appendChild(document.createElement("div"));
                 remoteVideoContainer.classList.add("video-container");
+
+                const remoteControlRegion = remoteVideoContainer.appendChild(document.createElement("div"));
+                remoteControlRegion.classList.add("control-region");
 
                 const remoteVideoElement = remoteVideoContainer.appendChild(document.createElement("video"));
                 remoteVideoElement.muted = true;
