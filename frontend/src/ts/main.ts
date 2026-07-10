@@ -88,6 +88,9 @@ window.addEventListener("load", async () => {
                 const peerConnection = await createPeerConnection(localConnId > peerJoinData.connId, peerJoinData.connId, websocketService);
                 peerConnection.ontrack = async (event) => {
                     const stream = event.streams[0];
+                    console.log("Streams", event.streams);
+                    console.log("Video Tracks", stream.getVideoTracks());
+                    console.log("Audio Tracks", stream.getAudioTracks());
                     if (stream.getVideoTracks().length > 0) {
                         remoteVideoElement.srcObject = event.streams[0];
                     }
@@ -95,6 +98,7 @@ window.addEventListener("load", async () => {
                     await audioContext.audioWorklet.addModule(noiseGateUrl);
 
                     const audioSource = audioContext.createMediaStreamSource(stream);
+                    console.log("B", audioSource.mediaStream.getAudioTracks());
                     const audioChain: AudioNode[] = [audioSource];
 
                     const highPassFilter = audioContext.createBiquadFilter();
@@ -145,6 +149,7 @@ window.addEventListener("load", async () => {
                     remoteAudioElement.srcObject = mediaStreamDestination.stream;
                 };
                 for (const track of localStream.getTracks()) {
+                    console.log("Adding Track to Send", track);
                     peerConnection.addTrack(track, localStream);
                 }
                 peers[peerJoinData.connId] = {connId: peerJoinData.connId, connection: peerConnection, videoContainer: remoteVideoContainer};
