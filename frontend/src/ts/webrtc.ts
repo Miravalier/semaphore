@@ -55,7 +55,7 @@ export class SignalService {
 }
 
 
-export async function createPeerConnection(caller: boolean, peerConnId: string, websocketService: Api.WebsocketService, localStream?: MediaStream, remoteTarget?: HTMLVideoElement): Promise<RTCPeerConnection> {
+export async function createPeerConnection(caller: boolean, peerConnId: string, websocketService: Api.WebsocketService): Promise<RTCPeerConnection> {
     const turnServerInfo = await Api.getTurnServerInfo();
     const iceConfiguration = {
         iceServers: [
@@ -114,18 +114,6 @@ export async function createPeerConnection(caller: boolean, peerConnId: string, 
                 data: peerConnection.localDescription,
             });
         };
-    }
-
-    peerConnection.ontrack = (event) => {
-        if (remoteTarget) {
-            remoteTarget.srcObject = event.streams[0];
-        }
-    };
-
-    if (localStream) {
-        for (const track of localStream.getTracks()) {
-            peerConnection.addTrack(track, localStream);
-        }
     }
 
     peerConnection.addEventListener("peerclose", () => {

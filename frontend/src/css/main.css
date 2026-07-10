@@ -28,11 +28,24 @@ button:hover {
     background-color: rgba(255, 255, 255, 0.275);
 }
 
-video {
-    background: black;
+.video-container {
     flex: 1;
-    overflow: hidden;
+    display: flex;
+    flex-flow: column nowrap;
+}
+
+video {
+    border: 2px solid #000;
+    background: #000;
     border-radius: 8px;
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+.speaking video {
+    border: 2px solid #444;
+    background: radial-gradient(#111, #000);
 }
 
 .viewport {
