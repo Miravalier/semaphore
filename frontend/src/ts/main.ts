@@ -134,10 +134,12 @@ window.addEventListener("load", async () => {
                         audioChain.push(noiseGateNode);
 
                         const gainNode = audioContext.createGain();
-                        gainNode.gain.value = 2;
+                        gainNode.gain.value = 5.0;
                         audioChain.push(gainNode);
+
+                        volumeInput.value = ((gainNode.gain.value / 10.0) * 100.0).toString();
                         volumeInput.addEventListener("input", () => {
-                            const targetValue = parseFloat(volumeInput.value) / 10;
+                            const targetValue = (parseFloat(volumeInput.value) / 100.0) * 10.0;
                             gainNode.gain.setTargetAtTime(targetValue, audioContext.currentTime, 0.015);
                         });
 
