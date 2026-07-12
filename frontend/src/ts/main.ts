@@ -1,9 +1,12 @@
 import * as Elements from "./elements";
 import * as Sources from "./sources";
-import { createPeerConnection } from "./webrtc";
 import * as Api from "./api";
+import { createPeerConnection } from "./webrtc";
+import { animals, adjectives } from "./names";
+import { randomChoice } from "./utils";
 
 import noiseGateUrl from '../assets/audio-worklets/noisegate.js?url';
+
 
 type RoomPeer = {
     name: string;
@@ -13,7 +16,7 @@ type RoomPeer = {
 };
 
 let localConnId: string = null as any;
-let localName = "asdf";
+let localName = `${randomChoice(adjectives)} ${randomChoice(animals)}`;
 const roomId = "default";
 const websocketService: Api.WebsocketService = new Api.WebsocketService();
 const peers: {[connId: string]: RoomPeer} = {};
@@ -26,6 +29,7 @@ window.addEventListener("load", async () => {
         if (message.type === Api.WebsocketMessageType.CONNECT) {
             const connectData: Api.ServerConnectData = message.data;
             localConnId = connectData.connId;
+            await websocketService.send({type: Api.WebsocketMessageType.CONNECT, data: {name: localName}});
         }
     });
     websocketService.init();
@@ -94,24 +98,21 @@ window.addEventListener("load", async () => {
         };
 
         websocketService.addMessageHandler(async (message) => {
+            // Reconnect Handler
             if (message.type === Api.WebsocketMessageType.CONNECT) {
                 for (const [connId, roomPeer] of Object.entries(peers)) {
                     roomPeer.videoContainer.remove();
                     roomPeer.connection.close();
                     roomPeer.connection.dispatchEvent(new CustomEvent("peerclose"));
                     delete peers[connId];
+                    await websocketService.send({type: Api.WebsocketMessageType.ROOM_JOIN, data: {roomId}});
                 }
-                console.log("Sending Name");
-                await websocketService.send({type: Api.WebsocketMessageType.CONNECT, data: {name: localName}});
-                console.log("Sending Join");
-                await websocketService.send({type: Api.WebsocketMessageType.ROOM_JOIN, data: {roomId}});
+            // Peer Join Handler
             } else if (message.type === Api.WebsocketMessageType.PEER_JOIN) {
                 const peerJoinData: Api.PeerJoinData = message.data;
                 if (peerJoinData.connId == localConnId) {
                     return;
                 }
-
-                console.log(peerJoinData);
 
                 const remoteVideoContainer = viewport.appendChild(document.createElement("div"));
                 remoteVideoContainer.classList.add("video-container");
@@ -157,10 +158,8 @@ window.addEventListener("load", async () => {
                     remoteAudioElement.play();
                 }
 
-                const peerConnection = await createPeerConnection(localConnId > peerJoinData.connId, peerJoinData.connId, websocketService);
-                peerConnection.ontrack = async (event) => {
-                    const stream = event.streams[0];
-                    const track = event.track;
+                const peerConnection = await createPeerConnection(localConnId > peerJoinData.connId, peerJoinData.connId, websocketService, async (stream, track) => {
+                    console.log("Track Received", stream, track);
                     remoteVideoElement.srcObject = stream;
                     if (track.kind === "audio") {
                         const audioContext = new AudioContext();
@@ -230,12 +229,13 @@ window.addEventListener("load", async () => {
 
                         remoteAudioElement.srcObject = mediaStreamDestination.stream;
                     }
-                };
+                });
                 for (const track of localStream.getTracks()) {
                     console.log("Adding Track to Send", track, localStream);
                     peerConnection.addTrack(track, localStream);
                 }
                 peers[peerJoinData.connId] = {name: peerJoinData.name, connId: peerJoinData.connId, connection: peerConnection, videoContainer: remoteVideoContainer};
+            // Peer Drop Handler
             } else if (message.type === Api.WebsocketMessageType.PEER_DROP) {
                 const peerDropData: Api.PeerDropData = message.data;
                 if (peerDropData.connId == localConnId) {

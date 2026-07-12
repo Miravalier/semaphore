@@ -9,6 +9,7 @@ export type SignalingMessage = {
 
 
 export type MessageHandler = (message: SignalingMessage) => void;
+export type TrackHandler = (stream: MediaStream, track: MediaStreamTrack) => void;
 
 
 export class SignalService {
@@ -55,7 +56,7 @@ export class SignalService {
 }
 
 
-export async function createPeerConnection(caller: boolean, peerConnId: string, websocketService: Api.WebsocketService): Promise<RTCPeerConnection> {
+export async function createPeerConnection(caller: boolean, peerConnId: string, websocketService: Api.WebsocketService, trackHandler: TrackHandler): Promise<RTCPeerConnection> {
     const turnServerInfo = await Api.getTurnServerInfo();
     const iceConfiguration = {
         iceServers: [
@@ -68,6 +69,10 @@ export async function createPeerConnection(caller: boolean, peerConnId: string, 
     };
 
     const peerConnection = new RTCPeerConnection(iceConfiguration);
+    peerConnection.ontrack = (event) => {
+        trackHandler(event.streams[0], event.track);
+    }
+
     const pendingCandidates = [];
     let remoteDescriptionSet = false;
 
