@@ -101,13 +101,17 @@ window.addEventListener("load", async () => {
                     roomPeer.connection.dispatchEvent(new CustomEvent("peerclose"));
                     delete peers[connId];
                 }
+                console.log("Sending Name");
                 await websocketService.send({type: Api.WebsocketMessageType.CONNECT, data: {name: localName}});
+                console.log("Sending Join");
                 await websocketService.send({type: Api.WebsocketMessageType.ROOM_JOIN, data: {roomId}});
             } else if (message.type === Api.WebsocketMessageType.PEER_JOIN) {
                 const peerJoinData: Api.PeerJoinData = message.data;
                 if (peerJoinData.connId == localConnId) {
                     return;
                 }
+
+                console.log(peerJoinData);
 
                 const remoteVideoContainer = viewport.appendChild(document.createElement("div"));
                 remoteVideoContainer.classList.add("video-container");

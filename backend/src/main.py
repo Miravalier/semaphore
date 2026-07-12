@@ -204,6 +204,7 @@ async def alerts_websocket(websocket: WebSocket):
     connection.add_pool(connection.conn_id)
 
     try:
+        print("Sending connect")
         await connection.send_message(WebsocketMessage(
             type=WebsocketMessageType.CONNECT,
             data=ServerConnectData(connId=connection.conn_id),
