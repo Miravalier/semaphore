@@ -37,6 +37,17 @@ button:hover {
     border-radius: 8px;
 }
 
+.video-container .name-label {
+    position: relative;
+    height: 100%;
+    width: 100%;
+    z-index: 1;
+    display: flex;
+    flex-flow: column nowrap;
+    justify-content: center;
+    align-items: center;
+}
+
 .video-container .control-region {
     transition: opacity 0.2s;
     opacity: 0;
@@ -48,10 +59,36 @@ button:hover {
     right: 0;
     z-index: 1;
     border-radius: 0 0 8px 8px;
+    display: flex;
+    flex-flow: row nowrap;
+    justify-content: center;
+    align-items: center;
 }
 
 .video-container:hover .control-region {
     opacity: 1;
+}
+
+.video-container .control-region .volume-region {
+    display: flex;
+    flex-flow: row nowrap;
+    justify-content: center;
+    align-items: center;
+    margin: 0 4px;
+}
+
+.video-container .control-region button {
+    margin: 0 8px;
+    padding: 0;
+    background: none;
+}
+
+.video-container .control-region button.muted i {
+    color: #aa2020;
+}
+
+.video-container .control-region button.end-call i {
+    color: #aa2020;
 }
 
 video {

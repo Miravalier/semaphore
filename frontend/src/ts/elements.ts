@@ -17,8 +17,11 @@ export function div(classes: string | string[], textContent?: string): HTMLDivEl
 }
 
 
-export function button(classes: string | string[], textContent?: string, onClick?: CallableFunction): HTMLButtonElement {
-    const result: HTMLButtonElement = element("button", classes, textContent);
+export function button(classes: string | string[], innerHTML?: string, onClick?: CallableFunction): HTMLButtonElement {
+    const result: HTMLButtonElement = element("button", classes);
+    if (innerHTML) {
+        result.innerHTML = innerHTML;
+    }
     if (onClick) {
         result.addEventListener("click", ev => {
             onClick(ev);

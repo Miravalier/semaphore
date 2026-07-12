@@ -47,8 +47,11 @@ export enum WebsocketMessageType {
     PEER_DROP = 'peerDrop',
 };
 
+export type ClientConnectData = {
+    name: string;
+}
 
-export type ConnectData = {
+export type ServerConnectData = {
     connId: string;
 }
 
@@ -58,6 +61,7 @@ export type RoomJoinData = {
 
 export type PeerJoinData = {
     connId: string;
+    name: string;
 };
 
 export type PeerDropData = {

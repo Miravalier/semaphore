@@ -70,7 +70,11 @@ class WebsocketMessage(BaseModel):
     data: Any = None
 
 
-class WebsocketConnectData(BaseModel):
+class ClientConnectData(BaseModel):
+    name: str
+
+
+class ServerConnectData(BaseModel):
     connId: str
 
 
@@ -92,6 +96,7 @@ class RoomJoinData(BaseModel):
 
 class PeerJoinData(BaseModel):
     connId: str
+    name: str
 
 
 class PeerDropData(BaseModel):
@@ -99,11 +104,16 @@ class PeerDropData(BaseModel):
 
 
 pools: dict[str, set[Connection]] = {}
+empty_pool = set()
+
+def get_pool(pool_id: str) -> set[Connection]:
+    return pools.get(pool_id, empty_pool)
 
 
 @dataclass
 class Connection:
     socket: WebSocket
+    name: str = ""
     pool_ids: set[str] = field(default_factory=set)
     room_id: Optional[str] = None
     conn_id: str = field(default_factory=generate_uuid)
@@ -114,6 +124,9 @@ class Connection:
     async def handle_request(self, request: WebsocketMessage) -> WebsocketMessage | None:
         if request.type == WebsocketMessageType.PING:
             await self.send_message(WebsocketMessage(type=WebsocketMessageType.PONG))
+        elif request.type == WebsocketMessageType.CONNECT:
+            connect_data = ClientConnectData.model_validate(request.data)
+            self.name = connect_data.name
         elif request.type == WebsocketMessageType.ROOM_JOIN:
             room_join_data = RoomJoinData.model_validate(request.data)
             if self.room_id != None:
@@ -138,12 +151,12 @@ class Connection:
         tasks = []
         tasks.append(websocket_broadcast(WebsocketMessage(
             type=WebsocketMessageType.PEER_JOIN,
-            data=PeerJoinData(connId=self.conn_id)
+            data=PeerJoinData(connId=self.conn_id, name=self.name)
         ), pool_id=self.room_id))
-        for peer in pools.get(self.room_id, ()):
+        for peer in get_pool(self.room_id):
             tasks.append(self.send_message(WebsocketMessage(
                 type=WebsocketMessageType.PEER_JOIN,
-                data=PeerJoinData(connId=peer.conn_id)
+                data=PeerJoinData(connId=peer.conn_id, name=peer.name)
             )))
         self.add_pool(self.room_id)
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -193,7 +206,7 @@ async def alerts_websocket(websocket: WebSocket):
     try:
         await connection.send_message(WebsocketMessage(
             type=WebsocketMessageType.CONNECT,
-            data=WebsocketConnectData(connId=connection.conn_id),
+            data=ServerConnectData(connId=connection.conn_id),
         ))
         while True:
             request = WebsocketMessage.model_validate(await connection.socket.receive_json())

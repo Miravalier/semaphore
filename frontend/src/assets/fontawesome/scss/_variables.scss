@@ -1,0 +1,109 @@
+// variables
+// --------------------------
+
+$css-prefix            : fa !default;
+$style                 : 900 !default;
+$family                : "Font Awesome 7 Pro" !default;
+
+$icon-property         : --fa !default;
+
+$display               : inline-block !default;
+
+$fw-width              : calc((20/16) * 1em) !default;
+$inverse               : #fff !default;
+
+$border-box-sizing     : content-box !default;
+$border-color          : #eee !default;
+$border-padding        : 0.1875em 0.25em !default;
+$border-radius         : .1em !default;
+$border-style          : solid !default;
+$border-width          : .0625em !default;
+
+$size-scale-2xs        : 10 !default;
+$size-scale-xs         : 12 !default;
+$size-scale-sm         : 14 !default;
+$size-scale-base       : 16 !default;
+$size-scale-lg         : 20 !default;
+$size-scale-xl         : 24 !default;
+$size-scale-2xl        : 32 !default;
+
+$sizes: (
+  "2xs"                : $size-scale-2xs,
+  "xs"                 : $size-scale-xs,
+  "sm"                 : $size-scale-sm,
+  "lg"                 : $size-scale-lg,
+  "xl"                 : $size-scale-xl,
+  "2xl"                : $size-scale-2xl
+) !default;
+
+$li-width              : 2em !default;
+$li-margin             : calc($li-width * (5/4)) !default;
+
+$pull-margin           : .3em !default;
+
+$primary-opacity       : 1 !default;
+$secondary-opacity     : .4 !default;
+
+$stack-vertical-align  : middle !default;
+$stack-width           : ($fw-width * 2) !default;
+$stack-z-index         : auto !default;
+
+// web fonts-related variables
+$font-display          : block !default;
+$font-path             : "../webfonts" !default;
+
+// deprecated: these older SCSS variables will be removed with Font Awesome's next major release
+$style-family          : $family;
+
+$var-camera: \f030;
+$var-camera-alt: \f030;
+$var-camera-slash: \e0d9;
+$var-display: \e163;
+$var-display-slash: \e2fa;
+$var-desktop-slash: \e2fa;
+$var-gear: \f013;
+$var-cog: \f013;
+$var-microphone: \f130;
+$var-microphone-signal-meter: \e760;
+$var-microphone-slash: \f131;
+$var-phone-hangup: \e225;
+$var-speaker: \f8df;
+$var-video: \f03d;
+$var-video-camera: \f03d;
+$var-video-slash: \f4e2;
+$var-volume: \f6a8;
+$var-volume-medium: \f6a8;
+$var-volume-xmark: \f6a9;
+$var-volume-mute: \f6a9;
+$var-volume-times: \f6a9;
+
+
+$icons: (
+  "camera": $var-camera,
+  "camera-alt": $var-camera-alt,
+  "camera-slash": $var-camera-slash,
+  "display": $var-display,
+  "display-slash": $var-display-slash,
+  "desktop-slash": $var-desktop-slash,
+  "gear": $var-gear,
+  "cog": $var-cog,
+  "microphone": $var-microphone,
+  "microphone-signal-meter": $var-microphone-signal-meter,
+  "microphone-slash": $var-microphone-slash,
+  "phone-hangup": $var-phone-hangup,
+  "speaker": $var-speaker,
+  "video": $var-video,
+  "video-camera": $var-video-camera,
+  "video-slash": $var-video-slash,
+  "volume": $var-volume,
+  "volume-medium": $var-volume-medium,
+  "volume-xmark": $var-volume-xmark,
+  "volume-mute": $var-volume-mute,
+  "volume-times": $var-volume-times,
+);
+
+$brand-icons: (
+);
+
+$custom-icons: (
+);

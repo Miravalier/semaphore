@@ -1,0 +1,513 @@
+---
+camera:
+  aliases:
+    names:
+      - camera-alt
+    unicodes:
+      composite:
+        - f332
+      primary:
+        - f332
+      secondary:
+        - 10f030
+        - 10f332
+  changes:
+    - 1.0.0
+    - 5.0.0
+    - 6.0.0-beta1
+    - 6.0.0-beta2
+    - 6.2.0
+    - 6.3.0
+    - 6.4.0
+    - 6.5.0
+    - 6.6.0
+    - 6.7.0
+    - 7.0.0
+    - 7.1.0
+    - 7.2.0
+  label: Camera
+  search:
+    terms:
+      - camera
+      - camera icon
+      - capture
+      - film
+      - image
+      - lens
+      - photo
+      - photograph
+      - photography
+      - picture
+      - recording
+      - shutter
+      - snapshot
+      - video
+  styles:
+    - solid
+  unicode: f030
+  voted: false
+camera-slash:
+  changes:
+    - 6.0.0-beta1
+    - 6.0.0-beta2
+    - 6.2.0
+    - 6.3.0
+    - 6.4.0
+    - 6.5.0
+    - 6.6.0
+    - 6.7.0
+    - 7.0.0
+    - 7.1.0
+  label: Camera Slash
+  search:
+    terms:
+      - block
+      - camera
+      - disable camera
+      - disabled
+      - forbidden
+      - hidden
+      - muted
+      - no camera
+      - off
+      - photo
+      - privacy
+      - slash
+      - video off
+      - webcam off
+  styles:
+    - solid
+  unicode: e0d9
+  voted: false
+display:
+  changes:
+    - 6.0.0-beta1
+    - 6.1.0
+    - 6.2.0
+    - 6.3.0
+    - 6.4.0
+    - 6.5.0
+    - 6.6.0
+    - 6.7.0
+    - 7.0.0
+    - 7.1.0
+  label: Display
+  search:
+    terms:
+      - computer
+      - desktop
+      - device
+      - display
+      - electronic
+      - imac
+      - interface
+      - lcd
+      - led
+      - monitor
+      - panel
+      - screen
+      - tech
+      - visual
+  styles:
+    - solid
+  unicode: e163
+  voted: false
+display-slash:
+  aliases:
+    names:
+      - desktop-slash
+  changes:
+    - 6.0.0-beta1
+    - 6.2.0
+    - 6.3.0
+    - 6.4.0
+    - 6.5.0
+    - 6.6.0
+    - 6.7.0
+    - 7.0.0
+  label: Display Slash
+  search:
+    terms:
+      - blocked
+      - computer
+      - desktop
+      - disabled
+      - disconnect
+      - hide
+      - monitor
+      - muted
+      - no display
+      - off
+      - privacy
+      - screen
+  styles:
+    - solid
+  unicode: e2fa
+  voted: false
+gear:
+  aliases:
+    names:
+      - cog
+    unicodes:
+      composite:
+        - '2699'
+      secondary:
+        - 10f013
+  changes:
+    - 1.0.0
+    - 5.0.0
+    - 6.0.0-beta1
+    - 6.0.0
+    - 6.2.0
+    - 6.3.0
+    - 6.4.0
+    - 6.5.0
+    - 6.6.0
+    - 6.7.0
+    - 7.0.0
+    - 7.1.0
+    - 7.2.0
+  label: Gear
+  search:
+    terms:
+      - adjust
+      - cog
+      - cogwheel
+      - configuration
+      - control
+      - gear
+      - mechanical
+      - modify
+      - options
+      - preferences
+      - settings
+      - setup
+      - sprocket
+      - tool
+      - wheel
+  styles:
+    - solid
+  unicode: f013
+  voted: false
+microphone:
+  aliases:
+    unicodes:
+      secondary:
+        - 10f130
+  changes:
+    - 3.1.0
+    - 5.0.0
+    - 5.0.13
+    - 6.0.0-beta1
+    - 6.2.0
+    - 6.3.0
+    - 6.4.0
+    - 6.5.0
+    - 6.6.0
+    - 6.7.0
+    - 7.0.0
+    - 7.1.0
+    - 7.2.0
+  label: Microphone
+  search:
+    terms:
+      - audio
+      - broadcast
+      - karaoke
+      - microphone
+      - music
+      - podcast
+      - record
+      - recording
+      - sing
+      - sound
+      - speech
+      - talk
+      - talking
+      - vocal
+      - voice
+  styles:
+    - solid
+    - regular
+  unicode: f130
+  voted: false
+microphone-signal-meter:
+  changes:
+    - 7.0.0
+  label: Microphone Signal Meter
+  search:
+    terms:
+      - audio
+      - broadcast
+      - input
+      - level
+      - meter
+      - microphone
+      - podcast
+      - recording
+      - signal
+      - sing
+      - sound
+      - speak
+      - talking
+      - voice
+      - volume
+  styles:
+    - solid
+  unicode: e760
+  voted: false
+microphone-slash:
+  aliases:
+    unicodes:
+      secondary:
+        - 10f131
+  changes:
+    - 3.1.0
+    - 5.0.0
+    - 5.0.13
+    - 6.0.0-beta1
+    - 6.2.0
+    - 6.3.0
+    - 6.4.0
+    - 6.5.0
+    - 6.6.0
+    - 6.7.0
+    - 7.0.0
+    - 7.1.0
+    - 7.2.0
+  label: Microphone Slash
+  search:
+    terms:
+      - audio off
+      - disable
+      - disabled
+      - microphone
+      - mute
+      - muted
+      - no sound
+      - podcast
+      - record
+      - silence
+      - sing
+      - sound off
+      - voice off
+  styles:
+    - solid
+  unicode: f131
+  voted: false
+phone-hangup:
+  changes:
+    - 6.0.0-beta1
+    - 6.2.0
+    - 6.3.0
+    - 6.4.0
+    - 6.5.0
+    - 6.6.0
+    - 6.7.0
+    - 7.0.0
+    - 7.1.0
+  label: Phone Hangup
+  search:
+    terms:
+      - call
+      - decline
+      - disconnect
+      - end
+      - end call
+      - hang up
+      - hangup
+      - phone
+      - phone off
+      - reject
+      - terminate
+  styles:
+    - solid
+  unicode: e225
+  voted: false
+speaker:
+  aliases:
+    unicodes:
+      secondary:
+        - 10f8df
+  changes:
+    - 5.11.0
+    - 6.0.0-beta1
+    - 6.2.0
+    - 6.3.0
+    - 6.4.0
+    - 6.5.0
+    - 6.6.0
+    - 6.7.0
+    - 7.0.0
+    - 7.1.0
+  label: Speaker
+  search:
+    terms:
+      - audio
+      - audio device
+      - bass
+      - loudspeaker
+      - music
+      - sound
+      - sound system
+      - speaker
+      - speaker cone
+      - subwoofer
+      - tweeter
+      - volume
+  styles:
+    - solid
+  unicode: f8df
+  voted: false
+video:
+  aliases:
+    names:
+      - video-camera
+    unicodes:
+      secondary:
+        - 10f03d
+  changes:
+    - 1.0.0
+    - 5.0.0
+    - 5.0.9
+    - 6.0.0-beta1
+    - 6.2.0
+    - 6.3.0
+    - 6.4.0
+    - 6.5.0
+    - 6.6.0
+    - 6.7.0
+    - 7.0.0
+    - 7.1.0
+    - 7.2.0
+  label: Video
+  search:
+    terms:
+      - camcorder
+      - camera
+      - clip
+      - film
+      - footage
+      - media
+      - movie
+      - playback
+      - record
+      - recording
+      - streaming
+      - video
+      - video-camera
+  styles:
+    - solid
+  unicode: f03d
+  voted: false
+video-slash:
+  aliases:
+    unicodes:
+      secondary:
+        - 10f4e2
+  changes:
+    - 5.0.9
+    - 6.0.0-beta1
+    - 6.2.0
+    - 6.3.0
+    - 6.4.0
+    - 6.5.0
+    - 6.6.0
+    - 6.7.0
+    - 7.0.0
+    - 7.1.0
+    - 7.2.0
+  label: Video Slash
+  search:
+    terms:
+      - block
+      - camera off
+      - disabled
+      - disconnect
+      - film
+      - hide
+      - mute
+      - no video
+      - off
+      - record
+      - stop
+      - video
+  styles:
+    - solid
+  unicode: f4e2
+  voted: false
+volume:
+  aliases:
+    names:
+      - volume-medium
+    unicodes:
+      composite:
+        - 1f509
+      secondary:
+        - 10f6a8
+  changes:
+    - 5.3.0
+    - 6.0.0-beta1
+    - 6.2.0
+    - 6.3.0
+    - 6.4.0
+    - 6.5.0
+    - 6.6.0
+    - 6.7.0
+    - 7.0.0
+    - 7.1.0
+    - 7.2.0
+  label: Volume
+  search:
+    terms:
+      - audio
+      - audio level
+      - media
+      - music
+      - sound
+      - sound control
+      - speaker
+      - speaker medium
+      - volume
+      - volume control
+  styles:
+    - solid
+  unicode: f6a8
+  voted: false
+volume-xmark:
+  aliases:
+    names:
+      - volume-mute
+      - volume-times
+    unicodes:
+      secondary:
+        - 10f6a9
+  changes:
+    - 5.3.0
+    - 6.0.0-beta1
+    - 6.2.0
+    - 6.3.0
+    - 6.4.0
+    - 6.5.0
+    - 6.6.0
+    - 6.7.0
+    - 7.0.0
+    - 7.1.0
+  label: Volume Xmark
+  search:
+    terms:
+      - audio
+      - audio off
+      - disable sound
+      - mute
+      - mute speaker
+      - no sound
+      - off
+      - silent
+      - sound
+      - speaker
+      - volume
+  styles:
+    - solid
+  unicode: f6a9
+  voted: true

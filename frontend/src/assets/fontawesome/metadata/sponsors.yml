@@ -1,0 +1,12 @@
+---
+pulse-eight:
+  icons:
+    - volume-xmark
+  label: Pulse-Eight
+  url: https://pulse-eight.com
+rocket-chat:
+  icons:
+    - video
+    - video-slash
+  label: Rocket.Chat
+  url: https://rocket.chat

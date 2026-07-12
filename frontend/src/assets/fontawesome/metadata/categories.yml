@@ -1,0 +1,77 @@
+---
+coding:
+  icons:
+    - gear
+  label: Coding
+communication:
+  icons:
+    - microphone
+    - microphone-slash
+    - phone-hangup
+    - video
+    - video-slash
+  label: Communication
+devices-hardware:
+  icons:
+    - camera
+    - display
+    - display-slash
+    - speaker
+  label: Devices + Hardware
+editing:
+  icons:
+    - gear
+  label: Editing
+film-video:
+  icons:
+    - microphone
+    - microphone-slash
+    - speaker
+    - video
+    - video-slash
+  label: Film + Video
+household:
+  icons:
+    - speaker
+  label: Household
+humanitarian:
+  icons:
+    - display
+  label: Humanitarian
+media-playback:
+  icons:
+    - volume
+    - volume-xmark
+  label: Media Playback
+music-audio:
+  icons:
+    - microphone
+    - microphone-signal-meter
+    - microphone-slash
+    - speaker
+    - volume
+    - volume-xmark
+  label: Music + Audio
+photos-images:
+  icons:
+    - camera
+    - camera-slash
+  label: Photos + Images
+shopping:
+  icons:
+    - camera
+  label: Shopping
+social:
+  icons:
+    - camera
+    - video
+  label: Social
+spinners:
+  icons:
+    - gear
+  label: Spinners
+toggle:
+  icons:
+    - microphone
+    - microphone-slash
+  label: Toggle

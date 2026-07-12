@@ -6,12 +6,14 @@ import * as Api from "./api";
 import noiseGateUrl from '../assets/audio-worklets/noisegate.js?url';
 
 type RoomPeer = {
+    name: string;
     connId: string;
     connection: RTCPeerConnection;
     videoContainer: HTMLDivElement;
 };
 
 let localConnId: string = null as any;
+let localName = "asdf";
 const roomId = "default";
 const websocketService: Api.WebsocketService = new Api.WebsocketService();
 const peers: {[connId: string]: RoomPeer} = {};
@@ -22,7 +24,7 @@ window.addEventListener("load", async () => {
 
     websocketService.addMessageHandler(async (message) => {
         if (message.type === Api.WebsocketMessageType.CONNECT) {
-            const connectData: Api.ConnectData = message.data;
+            const connectData: Api.ServerConnectData = message.data;
             localConnId = connectData.connId;
         }
     });
@@ -33,13 +35,54 @@ window.addEventListener("load", async () => {
         startButton.disabled = true;
         startButton.classList.add("hidden");
 
+        let localMute = false;
         const localStream = await Sources.getVideoStream();
 
         const localVideoContainer = viewport.appendChild(document.createElement("div"));
         localVideoContainer.classList.add("video-container");
 
+        localVideoContainer.appendChild(Elements.div("name-label", localName));
+
         const localControlRegion = localVideoContainer.appendChild(document.createElement("div"));
         localControlRegion.classList.add("control-region");
+
+        const localMuteButton = localControlRegion.appendChild(Elements.button([], `<i class="fa-solid fa-microphone"></i>`));
+        localMuteButton.addEventListener("click", () => {
+            localMute = !localMute;
+            if (localMute) {
+                for (const track of localStream.getAudioTracks()) {
+                    track.enabled = false;
+                }
+                localMuteButton.classList.add("muted");
+                localMuteButton.innerHTML = `<i class="fa-solid fa-microphone-slash"></i>`;
+            } else {
+                for (const track of localStream.getAudioTracks()) {
+                    track.enabled = true;
+                }
+                localMuteButton.classList.remove("muted");
+                localMuteButton.innerHTML = `<i class="fa-solid fa-microphone"></i>`;
+            }
+        });
+
+        const videoButton = localControlRegion.appendChild(Elements.button(["video"], `<i class="fa-solid fa-video-slash"></i>`));
+        videoButton.addEventListener("click", () => {
+
+        });
+
+        const screenShareButton = localControlRegion.appendChild(Elements.button(["screen-share"], `<i class="fa-solid fa-display-slash"></i>`));
+        screenShareButton.addEventListener("click", () => {
+
+        });
+
+        const settingsButton = localControlRegion.appendChild(Elements.button(["settings"], `<i class="fa-solid fa-gear"></i>`));
+        settingsButton.addEventListener("click", () => {
+
+        });
+
+        const endCallButton = localControlRegion.appendChild(Elements.button(["end-call"], `<i class="fa-solid fa-phone-hangup"></i>`));
+        endCallButton.addEventListener("click", () => {
+            location.reload();
+        });
 
         const localVideoElement = localVideoContainer.appendChild(document.createElement("video"));
         localVideoElement.muted = true;
@@ -58,6 +101,7 @@ window.addEventListener("load", async () => {
                     roomPeer.connection.dispatchEvent(new CustomEvent("peerclose"));
                     delete peers[connId];
                 }
+                await websocketService.send({type: Api.WebsocketMessageType.CONNECT, data: {name: localName}});
                 await websocketService.send({type: Api.WebsocketMessageType.ROOM_JOIN, data: {roomId}});
             } else if (message.type === Api.WebsocketMessageType.PEER_JOIN) {
                 const peerJoinData: Api.PeerJoinData = message.data;
@@ -68,14 +112,32 @@ window.addEventListener("load", async () => {
                 const remoteVideoContainer = viewport.appendChild(document.createElement("div"));
                 remoteVideoContainer.classList.add("video-container");
 
+                remoteVideoContainer.appendChild(Elements.div("name-label", peerJoinData.name));
+
                 const remoteControlRegion = remoteVideoContainer.appendChild(document.createElement("div"));
                 remoteControlRegion.classList.add("control-region");
-                const volumeInput = remoteControlRegion.appendChild(document.createElement("input"));
+
+                let muted = false;
+                const volumeRegion = remoteControlRegion.appendChild(Elements.div(["volume-region"]));
+                const muteButton = volumeRegion.appendChild(Elements.button([], `<i class="fa-solid fa-volume"></i>`));
+                const volumeInput = volumeRegion.appendChild(document.createElement("input"));
                 volumeInput.type = "range";
                 volumeInput.min = "0";
                 volumeInput.max = "100";
                 volumeInput.step = "any";
                 volumeInput.value = "50";
+
+                muteButton.addEventListener("click", () => {
+                    muted = !muted;
+                    if (muted) {
+                        muteButton.classList.add("muted");
+                        muteButton.innerHTML = `<i class="fa-solid fa-volume-xmark"></i>`;
+                    } else {
+                        muteButton.classList.remove("muted");
+                        muteButton.innerHTML = `<i class="fa-solid fa-volume"></i>`;
+                    }
+                    volumeInput.dispatchEvent(new InputEvent("input", {}));
+                });
 
                 const remoteVideoElement = remoteVideoContainer.appendChild(document.createElement("video"));
                 remoteVideoElement.muted = true;
@@ -134,12 +196,20 @@ window.addEventListener("load", async () => {
                         audioChain.push(noiseGateNode);
 
                         const gainNode = audioContext.createGain();
-                        gainNode.gain.value = 5.0;
+                        if (muted) {
+                            gainNode.gain.value = 0;
+                        } else {
+                            gainNode.gain.value = 5.0;
+                        }
                         audioChain.push(gainNode);
 
-                        volumeInput.value = ((gainNode.gain.value / 10.0) * 100.0).toString();
                         volumeInput.addEventListener("input", () => {
-                            const targetValue = (parseFloat(volumeInput.value) / 100.0) * 10.0;
+                            let targetValue: number;
+                            if (muted) {
+                                targetValue = 0;
+                            } else {
+                                targetValue = (parseFloat(volumeInput.value) / 100.0) * 10.0;
+                            }
                             gainNode.gain.setTargetAtTime(targetValue, audioContext.currentTime, 0.015);
                         });
 
@@ -161,7 +231,7 @@ window.addEventListener("load", async () => {
                     console.log("Adding Track to Send", track, localStream);
                     peerConnection.addTrack(track, localStream);
                 }
-                peers[peerJoinData.connId] = {connId: peerJoinData.connId, connection: peerConnection, videoContainer: remoteVideoContainer};
+                peers[peerJoinData.connId] = {name: peerJoinData.name, connId: peerJoinData.connId, connection: peerConnection, videoContainer: remoteVideoContainer};
             } else if (message.type === Api.WebsocketMessageType.PEER_DROP) {
                 const peerDropData: Api.PeerDropData = message.data;
                 if (peerDropData.connId == localConnId) {
