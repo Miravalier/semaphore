@@ -162,10 +162,16 @@ window.addEventListener("load", async () => {
         videoButton.addEventListener("click", async () => {
             localVideo = !localVideo;
             if (localVideo) {
+                // If no video is selected, prompt the user to select a video input
                 if (!Sources.videoIsSelected()) {
                     await Sources.selectDevices();
                 }
-                videoButton.innerHTML = `<i class="fa-solid fa-video"></i>`;
+                // User might *still* not have selected a video input
+                if (Sources.videoIsSelected()) {
+                    videoButton.innerHTML = `<i class="fa-solid fa-video"></i>`;
+                } else {
+                    localVideo = false;
+                }
                 replaceStream(StreamType.VIDEO, await Sources.getVideoStream());
             } else {
                 videoButton.innerHTML = `<i class="fa-solid fa-video-slash"></i>`;
