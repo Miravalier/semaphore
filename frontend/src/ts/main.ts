@@ -7,12 +7,32 @@ import { randomChoice } from "./utils";
 
 import noiseGateUrl from '../assets/audio-worklets/noisegate.js?url';
 
+enum StreamType {
+    AUDIO = 0,
+    VIDEO = 1,
+    SCREENSHARE = 2,
+};
+
+type RoomStream = {
+    streamId: string;
+    container: HTMLDivElement;
+    volumeInput: HTMLInputElement;
+    videoElement: HTMLVideoElement;
+    audioElement: HTMLAudioElement;
+    tracks: Set<string>;
+    muted: boolean;
+};
 
 type RoomPeer = {
     name: string;
     connId: string;
     connection: RTCPeerConnection;
-    videoContainer: HTMLDivElement;
+    streams: {[id: string]: RoomStream};
+};
+
+type OutboundStream = {
+    type: StreamType,
+    stream: MediaStream,
 };
 
 let localConnId: string = null as any;
@@ -20,6 +40,7 @@ let localName = `${randomChoice(adjectives)} ${randomChoice(animals)}`;
 const roomId = "default";
 const websocketService: Api.WebsocketService = new Api.WebsocketService();
 const peers: {[connId: string]: RoomPeer} = {};
+const outboundStreams: {[id: string]: OutboundStream} = {};
 
 
 window.addEventListener("load", async () => {
@@ -40,7 +61,8 @@ window.addEventListener("load", async () => {
         startButton.classList.add("hidden");
 
         let localMute = false;
-        const localStream = await Sources.getVideoStream();
+        const localStream = await Sources.getMicrophoneStream();
+        outboundStreams[localStream.id] = {stream: localStream, type: StreamType.AUDIO};
 
         const localVideoContainer = viewport.appendChild(document.createElement("div"));
         localVideoContainer.classList.add("video-container");
@@ -101,7 +123,9 @@ window.addEventListener("load", async () => {
             // Reconnect Handler
             if (message.type === Api.WebsocketMessageType.CONNECT) {
                 for (const [connId, roomPeer] of Object.entries(peers)) {
-                    roomPeer.videoContainer.remove();
+                    for (const roomStream of Object.values(roomPeer.streams)) {
+                        roomStream.container.remove();
+                    }
                     roomPeer.connection.close();
                     roomPeer.connection.dispatchEvent(new CustomEvent("peerclose"));
                     delete peers[connId];
@@ -114,53 +138,79 @@ window.addEventListener("load", async () => {
                     return;
                 }
 
-                const remoteVideoContainer = viewport.appendChild(document.createElement("div"));
-                remoteVideoContainer.classList.add("video-container");
+                const roomPeer: RoomPeer = {name: peerJoinData.name, connId: peerJoinData.connId, connection: null, streams: {}};
+                roomPeer.connection = await createPeerConnection(localConnId > peerJoinData.connId, peerJoinData.connId, websocketService, async (stream, track) => {
+                    // Lookup roomStream or create one if this is the first track of the stream
+                    let roomStream = roomPeer.streams[stream.id];
+                    if (!roomStream) {
+                        const remoteStreamContainer = viewport.appendChild(document.createElement("div"));
+                        remoteStreamContainer.classList.add("video-container");
+                        remoteStreamContainer.appendChild(Elements.div("name-label", peerJoinData.name));
 
-                remoteVideoContainer.appendChild(Elements.div("name-label", peerJoinData.name));
+                        const remoteControlRegion = remoteStreamContainer.appendChild(document.createElement("div"));
+                        remoteControlRegion.classList.add("control-region");
 
-                const remoteControlRegion = remoteVideoContainer.appendChild(document.createElement("div"));
-                remoteControlRegion.classList.add("control-region");
+                        const volumeRegion = remoteControlRegion.appendChild(Elements.div(["volume-region"]));
+                        const muteButton = volumeRegion.appendChild(Elements.button([], `<i class="fa-solid fa-volume"></i>`));
+                        const volumeInput = volumeRegion.appendChild(document.createElement("input"));
+                        volumeInput.type = "range";
+                        volumeInput.min = "0";
+                        volumeInput.max = "100";
+                        volumeInput.step = "any";
+                        volumeInput.value = "50";
 
-                let muted = false;
-                const volumeRegion = remoteControlRegion.appendChild(Elements.div(["volume-region"]));
-                const muteButton = volumeRegion.appendChild(Elements.button([], `<i class="fa-solid fa-volume"></i>`));
-                const volumeInput = volumeRegion.appendChild(document.createElement("input"));
-                volumeInput.type = "range";
-                volumeInput.min = "0";
-                volumeInput.max = "100";
-                volumeInput.step = "any";
-                volumeInput.value = "50";
+                        const remoteVideoElement = remoteStreamContainer.appendChild(document.createElement("video"));
+                        remoteVideoElement.muted = true;
+                        remoteVideoElement.defaultMuted = true;
+                        remoteVideoElement.autoplay = true;
+                        remoteVideoElement.onloadedmetadata = () => {
+                            remoteVideoElement.play();
+                        };
 
-                muteButton.addEventListener("click", () => {
-                    muted = !muted;
-                    if (muted) {
-                        muteButton.classList.add("muted");
-                        muteButton.innerHTML = `<i class="fa-solid fa-volume-xmark"></i>`;
-                    } else {
-                        muteButton.classList.remove("muted");
-                        muteButton.innerHTML = `<i class="fa-solid fa-volume"></i>`;
+                        const remoteAudioElement = remoteStreamContainer.appendChild(document.createElement("audio"));
+                        remoteAudioElement.autoplay = true;
+                        remoteAudioElement.onloadedmetadata = () => {
+                            remoteAudioElement.play();
+                        }
+
+                        roomStream = {
+                            streamId: stream.id,
+                            container: remoteStreamContainer,
+                            audioElement: remoteAudioElement,
+                            videoElement: remoteVideoElement,
+                            volumeInput: volumeInput,
+                            tracks: new Set(),
+                            muted: false,
+                        };
+                        roomPeer.streams[stream.id] = roomStream;
+
+                        muteButton.addEventListener("click", () => {
+                            roomStream.muted = !roomStream.muted;
+                            if (roomStream.muted) {
+                                muteButton.classList.add("muted");
+                                muteButton.innerHTML = `<i class="fa-solid fa-volume-xmark"></i>`;
+                            } else {
+                                muteButton.classList.remove("muted");
+                                muteButton.innerHTML = `<i class="fa-solid fa-volume"></i>`;
+                            }
+                            volumeInput.dispatchEvent(new InputEvent("input", {}));
+                        });
+
+                        stream.onremovetrack = (ev) => {
+                            roomStream.tracks.delete(ev.track.id);
+                            if (roomStream.tracks.size == 0) {
+                                delete roomPeer.streams[roomStream.streamId];
+                                roomStream.container.remove();
+                            }
+                        };
+
+                        remoteVideoElement.srcObject = stream;
                     }
-                    volumeInput.dispatchEvent(new InputEvent("input", {}));
-                });
 
-                const remoteVideoElement = remoteVideoContainer.appendChild(document.createElement("video"));
-                remoteVideoElement.muted = true;
-                remoteVideoElement.defaultMuted = true;
-                remoteVideoElement.autoplay = true;
-                remoteVideoElement.onloadedmetadata = () => {
-                    remoteVideoElement.play();
-                };
+                    // Add this track to the roomStream
+                    roomStream.tracks.add(track.id);
 
-                const remoteAudioElement = remoteVideoContainer.appendChild(document.createElement("audio"));
-                remoteAudioElement.autoplay = true;
-                remoteAudioElement.onloadedmetadata = () => {
-                    remoteAudioElement.play();
-                }
-
-                const peerConnection = await createPeerConnection(localConnId > peerJoinData.connId, peerJoinData.connId, websocketService, async (stream, track) => {
-                    console.log("Track Received", stream, track);
-                    remoteVideoElement.srcObject = stream;
+                    // If this is an audio track, hook it up to the audio element for this stream
                     if (track.kind === "audio") {
                         const audioContext = new AudioContext();
                         await audioContext.audioWorklet.addModule(noiseGateUrl);
@@ -191,27 +241,27 @@ window.addEventListener("load", async () => {
                         noiseGateNode.parameters.get("timeConstant").value = 0.0025;
                         noiseGateNode.port.onmessage = (ev) => {
                             if (ev.data.speaking) {
-                                remoteVideoContainer.classList.add("speaking");
+                                roomStream.container.classList.add("speaking");
                             } else {
-                                remoteVideoContainer.classList.remove("speaking");
+                                roomStream.container.classList.remove("speaking");
                             }
                         }
                         audioChain.push(noiseGateNode);
 
                         const gainNode = audioContext.createGain();
-                        if (muted) {
+                        if (roomStream.muted) {
                             gainNode.gain.value = 0;
                         } else {
                             gainNode.gain.value = 5.0;
                         }
                         audioChain.push(gainNode);
 
-                        volumeInput.addEventListener("input", () => {
+                        roomStream.volumeInput.addEventListener("input", () => {
                             let targetValue: number;
-                            if (muted) {
+                            if (roomStream.muted) {
                                 targetValue = 0;
                             } else {
-                                targetValue = (parseFloat(volumeInput.value) / 100.0) * 10.0;
+                                targetValue = (parseFloat(roomStream.volumeInput.value) / 100.0) * 10.0;
                             }
                             gainNode.gain.setTargetAtTime(targetValue, audioContext.currentTime, 0.015);
                         });
@@ -227,14 +277,16 @@ window.addEventListener("load", async () => {
                             previousNode = currentNode;
                         }
 
-                        remoteAudioElement.srcObject = mediaStreamDestination.stream;
+                        roomStream.audioElement.srcObject = mediaStreamDestination.stream;
                     }
                 });
-                for (const track of localStream.getTracks()) {
-                    console.log("Adding Track to Send", track, localStream);
-                    peerConnection.addTrack(track, localStream);
+                peers[peerJoinData.connId] = roomPeer;
+                for (const streamData of Object.values(outboundStreams)) {
+                    const localStream = streamData.stream;
+                    for (const track of localStream.getTracks()) {
+                        roomPeer.connection.addTrack(track, localStream);
+                    }
                 }
-                peers[peerJoinData.connId] = {name: peerJoinData.name, connId: peerJoinData.connId, connection: peerConnection, videoContainer: remoteVideoContainer};
             // Peer Drop Handler
             } else if (message.type === Api.WebsocketMessageType.PEER_DROP) {
                 const peerDropData: Api.PeerDropData = message.data;
@@ -245,7 +297,9 @@ window.addEventListener("load", async () => {
                 if (!roomPeer) {
                     return;
                 }
-                roomPeer.videoContainer.remove();
+                for (const roomStream of Object.values(roomPeer.streams)) {
+                    roomStream.container.remove();
+                }
                 roomPeer.connection.close();
                 roomPeer.connection.dispatchEvent(new CustomEvent("peerclose"));
                 delete peers[peerDropData.connId];
