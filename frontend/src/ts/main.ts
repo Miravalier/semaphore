@@ -63,7 +63,10 @@ window.addEventListener("load", async () => {
         function addStream(type: StreamType, stream: MediaStream) {
             const localVideoContainer = viewport.appendChild(document.createElement("div"));
             localVideoContainer.classList.add("video-container");
-            localVideoContainer.appendChild(Elements.div("name-label", localName));
+
+            if (stream.getVideoTracks().length == 0) {
+                localVideoContainer.appendChild(Elements.div("name-label", localName));
+            }
 
             const localVideoElement = localVideoContainer.appendChild(document.createElement("video"));
             localVideoElement.muted = true;
