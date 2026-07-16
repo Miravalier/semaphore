@@ -1,6 +1,11 @@
 import * as Elements from "./elements";
 import { Future } from "./async";
 
+
+let selectedAudioDevice: MediaDeviceInfo | null = null;
+let selectedVideoDevice: MediaDeviceInfo | null = null;
+
+
 export type ScreenCaptureSource = {
     id: string;
     type: "screen" | "window";
@@ -19,34 +24,71 @@ export function isElectron(): boolean {
     return navigator.userAgent.indexOf('Electron') !== -1;
 }
 
+export function videoIsSelected(): boolean {
+    return selectedVideoDevice !== null;
+}
+
+
+export async function selectDevices(): Promise<void> {
+    if (!isElectron()) return;
+
+    const dialogResult = new Future<{audioId: string, videoId: string}>();
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const dialog = document.body.appendChild(Elements.div("dialog"));
+    const audioSelect = dialog.appendChild(document.createElement("select"));
+    const videoSelect = dialog.appendChild(document.createElement("select"));
+    const noVideoOption = videoSelect.appendChild(document.createElement("option"));
+    noVideoOption.value = "";
+    noVideoOption.textContent = "None";
+    const deviceMap: {[id: string]: MediaDeviceInfo} = {};
+    for (const device of devices) {
+        const uuid = crypto.randomUUID();
+        deviceMap[uuid] = device;
+        if (device.kind === "audioinput") {
+            const audioOption = audioSelect.appendChild(document.createElement("option"));
+            audioOption.value = uuid;
+            audioOption.textContent = device.label;
+        } else if (device.kind === "videoinput") {
+            const videoOption = videoSelect.appendChild(document.createElement("option"));
+            videoOption.value = uuid;
+            videoOption.textContent = device.label;
+        }
+    }
+    dialog.appendChild(Elements.button([], "Join Call", () => {
+        dialogResult.resolve({audioId: audioSelect.value, videoId: videoSelect.value});
+    }));
+    const {audioId, videoId} = await dialogResult;
+    dialog.remove();
+
+    selectedAudioDevice = deviceMap[audioId];
+    if (videoId === "") {
+        selectedVideoDevice = null;
+    } else {
+        selectedVideoDevice = deviceMap[videoId];
+    }
+}
+
 
 export async function getMicrophoneStream(): Promise<MediaStream> {
     if (isElectron()) {
-        const dialogResult = new Future<{audioId: string}>();
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const dialog = document.body.appendChild(Elements.div("dialog"));
-        const audioSelect = dialog.appendChild(document.createElement("select"));
-        for (const device of devices) {
-            if (device.kind === "audioinput") {
-                const audioOption = audioSelect.appendChild(document.createElement("option"));
-                audioOption.value = device.deviceId;
-                audioOption.textContent = device.label;
-            }
+        if (selectedAudioDevice !== null) {
+            return await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    deviceId: {exact: selectedAudioDevice.deviceId},
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: {exact: false},
+                }
+            });
+        } else {
+            return await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: {exact: false},
+                }
+            });
         }
-        dialog.appendChild(Elements.button([], "Join Call", () => {
-            dialogResult.resolve({audioId: audioSelect.value});
-        }));
-        const {audioId} = await dialogResult;
-        dialog.remove();
-
-        return await navigator.mediaDevices.getUserMedia({
-            audio: {
-                deviceId: {exact: audioId},
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: {exact: false},
-            }
-        });
     } else {
         return await navigator.mediaDevices.getUserMedia({
             audio: {
@@ -61,57 +103,33 @@ export async function getMicrophoneStream(): Promise<MediaStream> {
 
 export async function getVideoStream(): Promise<MediaStream> {
     if (isElectron()) {
-        const dialogResult = new Future<{audioId: string, videoId: string}>();
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const dialog = document.body.appendChild(Elements.div("dialog"));
-        const audioSelect = dialog.appendChild(document.createElement("select"));
-        const videoSelect = dialog.appendChild(document.createElement("select"));
-        const noVideoOption = videoSelect.appendChild(document.createElement("option"));
-        noVideoOption.value = "";
-        noVideoOption.textContent = "None";
-        const deviceMap: {[id: string]: MediaDeviceInfo} = {};
-        for (const device of devices) {
-            const uuid = crypto.randomUUID();
-            deviceMap[uuid] = device;
-            if (device.kind === "audioinput") {
-                const audioOption = audioSelect.appendChild(document.createElement("option"));
-                audioOption.value = uuid;
-                audioOption.textContent = device.label;
-            } else if (device.kind === "videoinput") {
-                const videoOption = videoSelect.appendChild(document.createElement("option"));
-                videoOption.value = uuid;
-                videoOption.textContent = device.label;
-            }
-        }
-        dialog.appendChild(Elements.button([], "Join Call", () => {
-            dialogResult.resolve({audioId: audioSelect.value, videoId: videoSelect.value});
-        }));
-        const {audioId, videoId} = await dialogResult;
-        const audioDevice = deviceMap[audioId];
-        const videoDevice = deviceMap[videoId];
-        dialog.remove();
-
-        if (videoId === "") {
-            return await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    deviceId: {exact: audioDevice.deviceId},
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: {exact: false},
-                },
-            });
+        if (selectedVideoDevice === null) {
+            return await getMicrophoneStream();
         } else {
-            return await navigator.mediaDevices.getUserMedia({
-                video: {
-                    deviceId: {exact: videoDevice.deviceId},
-                },
-                audio: {
-                    deviceId: {exact: audioDevice.deviceId},
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: {exact: false},
-                },
-            });
+            if (selectedAudioDevice !== null) {
+                return await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        deviceId: {exact: selectedVideoDevice.deviceId},
+                    },
+                    audio: {
+                        deviceId: {exact: selectedAudioDevice.deviceId},
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: {exact: false},
+                    },
+                });
+            } else {
+                return await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        deviceId: {exact: selectedVideoDevice.deviceId},
+                    },
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: {exact: false},
+                    },
+                });
+            }
         }
     } else {
         try {
@@ -151,7 +169,7 @@ export async function getScreenShare(): Promise<MediaStream> {
             audio: {
                 echoCancellation: true,
                 noiseSuppression: false,
-                autoGainControl: {exact: false},
+                autoGainControl: false,
             },
             video: {
                 width: 1920,

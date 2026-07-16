@@ -8,9 +8,8 @@ import { randomChoice } from "./utils";
 import noiseGateUrl from '../assets/audio-worklets/noisegate.js?url';
 
 enum StreamType {
-    AUDIO = 0,
-    VIDEO = 1,
-    SCREENSHARE = 2,
+    VIDEO = 0,
+    SCREENSHARE = 1,
 };
 
 type RoomStream = {
@@ -33,6 +32,7 @@ type RoomPeer = {
 type OutboundStream = {
     type: StreamType,
     stream: MediaStream,
+    container: HTMLDivElement,
 };
 
 let localConnId: string = null as any;
@@ -60,44 +60,127 @@ window.addEventListener("load", async () => {
         startButton.disabled = true;
         startButton.classList.add("hidden");
 
-        let localMute = false;
-        const localStream = await Sources.getMicrophoneStream();
-        outboundStreams[localStream.id] = {stream: localStream, type: StreamType.AUDIO};
+        function addStream(type: StreamType, stream: MediaStream) {
+            const localVideoContainer = viewport.appendChild(document.createElement("div"));
+            localVideoContainer.classList.add("video-container");
+            localVideoContainer.appendChild(Elements.div("name-label", localName));
 
-        const localVideoContainer = viewport.appendChild(document.createElement("div"));
-        localVideoContainer.classList.add("video-container");
+            const localVideoElement = localVideoContainer.appendChild(document.createElement("video"));
+            localVideoElement.muted = true;
+            localVideoElement.defaultMuted = true;
+            localVideoElement.autoplay = true;
+            localVideoElement.srcObject = stream;
+            localVideoElement.onloadedmetadata = () => {
+                localVideoElement.play();
+            };
 
-        localVideoContainer.appendChild(Elements.div("name-label", localName));
+            outboundStreams[stream.id] = {type: type, stream: stream, container: localVideoContainer};
+            for (const peer of Object.values(peers)) {
+                for (const track of stream.getTracks()) {
+                    peer.connection.addTrack(track, stream);
+                }
+            }
+        }
 
-        const localControlRegion = localVideoContainer.appendChild(document.createElement("div"));
+        function removeStream(id: string) {
+            const oldStream = outboundStreams[id];
+            oldStream.container.remove();
+            for (const oldTrack of oldStream.stream.getTracks()) {
+                console.log("Removing Outbound Track", oldTrack.id, "From Stream", oldStream.stream.id);
+                for (const peer of Object.values(peers)) {
+                    const sender = peer.connection.getSenders().find(s => s.track && s.track.id == oldTrack.id);
+                    if (sender) {
+                        peer.connection.removeTrack(sender);
+                    }
+                }
+                oldStream.stream.removeTrack(oldTrack);
+            }
+            delete outboundStreams[id];
+            console.log("Removing Outbound Stream", oldStream.stream.id);
+        }
+
+        function findStream(type: StreamType): OutboundStream | null {
+            for (const outboundStream of Object.values(outboundStreams)) {
+                if (outboundStream.type === type) {
+                    return outboundStream;
+                }
+            }
+            return null;
+        }
+
+        function replaceStream(type: StreamType, stream: MediaStream) {
+            const oldStream = findStream(type);
+            if (oldStream !== null) {
+                removeStream(oldStream.stream.id);
+            }
+            if (stream !== null) {
+                addStream(type, stream);
+            }
+        }
+
+        await Sources.selectDevices();
+
+        const localControlRegion = document.body.appendChild(document.createElement("div"));
         localControlRegion.classList.add("control-region");
 
+        let localMute = false;
         const localMuteButton = localControlRegion.appendChild(Elements.button([], `<i class="fa-solid fa-microphone"></i>`));
         localMuteButton.addEventListener("click", () => {
             localMute = !localMute;
             if (localMute) {
-                for (const track of localStream.getAudioTracks()) {
-                    track.enabled = false;
+                for (const outboundStream of Object.values(outboundStreams)) {
+                    for (const track of outboundStream.stream.getAudioTracks()) {
+                        track.enabled = false;
+                    }
                 }
                 localMuteButton.classList.add("muted");
                 localMuteButton.innerHTML = `<i class="fa-solid fa-microphone-slash"></i>`;
             } else {
-                for (const track of localStream.getAudioTracks()) {
-                    track.enabled = true;
+                for (const outboundStream of Object.values(outboundStreams)) {
+                    for (const track of outboundStream.stream.getAudioTracks()) {
+                        track.enabled = true;
+                    }
                 }
                 localMuteButton.classList.remove("muted");
                 localMuteButton.innerHTML = `<i class="fa-solid fa-microphone"></i>`;
             }
         });
 
-        const videoButton = localControlRegion.appendChild(Elements.button(["video"], `<i class="fa-solid fa-video-slash"></i>`));
-        videoButton.addEventListener("click", () => {
+        let localVideo = Sources.videoIsSelected();
+        const videoButton = localControlRegion.appendChild(Elements.button(["video"]));
+        if (localVideo) {
+            videoButton.innerHTML = `<i class="fa-solid fa-video"></i>`;
+            replaceStream(StreamType.VIDEO, await Sources.getVideoStream());
+        } else {
+            videoButton.innerHTML = `<i class="fa-solid fa-video-slash"></i>`;
+            replaceStream(StreamType.VIDEO, await Sources.getMicrophoneStream());
+        }
 
+        videoButton.addEventListener("click", async () => {
+            localVideo = !localVideo;
+            if (localVideo) {
+                if (!Sources.videoIsSelected()) {
+                    await Sources.selectDevices();
+                }
+                videoButton.innerHTML = `<i class="fa-solid fa-video"></i>`;
+                replaceStream(StreamType.VIDEO, await Sources.getVideoStream());
+            } else {
+                videoButton.innerHTML = `<i class="fa-solid fa-video-slash"></i>`;
+                replaceStream(StreamType.VIDEO, await Sources.getMicrophoneStream());
+            }
         });
 
+        let localScreenShare = false;
         const screenShareButton = localControlRegion.appendChild(Elements.button(["screen-share"], `<i class="fa-solid fa-display-slash"></i>`));
-        screenShareButton.addEventListener("click", () => {
-
+        screenShareButton.addEventListener("click", async () => {
+            localScreenShare = !localScreenShare;
+            if (localScreenShare) {
+                screenShareButton.innerHTML = `<i class="fa-solid fa-display"></i>`;
+                replaceStream(StreamType.SCREENSHARE, await Sources.getScreenShare());
+            } else {
+                screenShareButton.innerHTML = `<i class="fa-solid fa-display-slash"></i>`;
+                replaceStream(StreamType.SCREENSHARE, null);
+            }
         });
 
         const settingsButton = localControlRegion.appendChild(Elements.button(["settings"], `<i class="fa-solid fa-gear"></i>`));
@@ -109,15 +192,6 @@ window.addEventListener("load", async () => {
         endCallButton.addEventListener("click", () => {
             location.reload();
         });
-
-        const localVideoElement = localVideoContainer.appendChild(document.createElement("video"));
-        localVideoElement.muted = true;
-        localVideoElement.defaultMuted = true;
-        localVideoElement.autoplay = true;
-        localVideoElement.srcObject = localStream;
-        localVideoElement.onloadedmetadata = () => {
-            localVideoElement.play();
-        };
 
         websocketService.addMessageHandler(async (message) => {
             // Reconnect Handler
@@ -197,8 +271,10 @@ window.addEventListener("load", async () => {
                         });
 
                         stream.onremovetrack = (ev) => {
+                            console.log("Removing Remote Track", ev.track.id, "from stream", roomStream.streamId);
                             roomStream.tracks.delete(ev.track.id);
                             if (roomStream.tracks.size == 0) {
+                                console.log("Removing Remote Stream", roomStream.streamId);
                                 delete roomPeer.streams[roomStream.streamId];
                                 roomStream.container.remove();
                             }
@@ -209,6 +285,11 @@ window.addEventListener("load", async () => {
 
                     // Add this track to the roomStream
                     roomStream.tracks.add(track.id);
+
+                    // If this stream contains a video track, remove the name label from this container
+                    if (track.kind === "video") {
+                        roomStream.container.querySelector(".name-label")?.remove();
+                    }
 
                     // If this is an audio track, hook it up to the audio element for this stream
                     if (track.kind === "audio") {
@@ -282,9 +363,9 @@ window.addEventListener("load", async () => {
                 });
                 peers[peerJoinData.connId] = roomPeer;
                 for (const streamData of Object.values(outboundStreams)) {
-                    const localStream = streamData.stream;
-                    for (const track of localStream.getTracks()) {
-                        roomPeer.connection.addTrack(track, localStream);
+                    const outboundStream = streamData.stream;
+                    for (const track of outboundStream.getTracks()) {
+                        roomPeer.connection.addTrack(track, outboundStream);
                     }
                 }
             // Peer Drop Handler
