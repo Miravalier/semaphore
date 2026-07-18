@@ -43,14 +43,41 @@ const peers: {[connId: string]: RoomPeer} = {};
 const outboundStreams: {[id: string]: OutboundStream} = {};
 
 
+function validateTracks() {
+    console.log("Valdating Tracks");
+    for (const peer of Object.values(peers)) {
+        // Get a map of all outbound track ids to track and stream
+        const tracksToSend: {[id: string]: [MediaStreamTrack, MediaStream]} = {};
+        for (const streamData of Object.values(outboundStreams)) {
+            for (const track of streamData.stream.getTracks()) {
+                console.log("Looking for", track.id);
+                tracksToSend[track.id] = [track, streamData.stream];
+            }
+        }
+        // Discard each of those ids that are already being sent to this peer
+        for (const sender of peer.connection.getSenders()) {
+            console.log("Found", sender.track.id);
+            delete tracksToSend[sender.track.id];
+        }
+        // TODO fix it
+        if (Object.values(tracksToSend).length != 0) {
+            console.log(`ERROR - ${peer.name} - Tracks Unsent:`, tracksToSend);
+        }
+    }
+}
+
+
 window.addEventListener("load", async () => {
     console.log("Semaphore App Loading ...");
+
+    // setInterval(validateTracks, 1000);
 
     websocketService.addMessageHandler(async (message) => {
         if (message.type === Api.WebsocketMessageType.CONNECT) {
             const connectData: Api.ServerConnectData = message.data;
             localConnId = connectData.connId;
             await websocketService.send({type: Api.WebsocketMessageType.CONNECT, data: {name: localName}});
+            console.log(`I am ${localName} ${localConnId}`);
         }
     });
     websocketService.init();
@@ -182,10 +209,14 @@ window.addEventListener("load", async () => {
                     await Sources.selectDevices();
                 }
                 // User might *still* not have selected a video input
-                if (Sources.videoIsSelected()) {
-                    videoButton.innerHTML = `<i class="fa-solid fa-video"></i>`;
+                if (Sources.isElectron()) {
+                    if (Sources.videoIsSelected()) {
+                        videoButton.innerHTML = `<i class="fa-solid fa-video"></i>`;
+                    } else {
+                        localVideo = false;
+                    }
                 } else {
-                    localVideo = false;
+                    videoButton.innerHTML = `<i class="fa-solid fa-video"></i>`;
                 }
                 setStream(StreamType.VIDEO, await Sources.getVideoStream());
             } else {
@@ -236,8 +267,11 @@ window.addEventListener("load", async () => {
                     return;
                 }
 
+                console.log("PEER CONNECTED", peerJoinData.name, peerJoinData.connId);
+
                 const roomPeer: RoomPeer = {name: peerJoinData.name, connId: peerJoinData.connId, connection: null, streams: {}};
                 roomPeer.connection = await createPeerConnection(localConnId > peerJoinData.connId, peerJoinData.connId, websocketService, async (stream, track) => {
+                    console.log("[!] Track Received", stream.id, track.kind, "from", roomPeer.name);
                     // Lookup roomStream or create one if this is the first track of the stream
                     let roomStream = roomPeer.streams[stream.id];
                     if (!roomStream) {
@@ -394,6 +428,7 @@ window.addEventListener("load", async () => {
                 for (const streamData of Object.values(outboundStreams)) {
                     const outboundStream = streamData.stream;
                     for (const track of outboundStream.getTracks()) {
+                        console.log("Sending Track", outboundStream.id, track.kind, "to", peerJoinData.name);
                         roomPeer.connection.addTrack(track, outboundStream);
                     }
                 }

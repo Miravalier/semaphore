@@ -28,6 +28,13 @@ button:hover {
     background-color: rgba(255, 255, 255, 0.275);
 }
 
+button.connect {
+    width: 300px;
+    height: 200px;
+    align-self: center;
+    justify-self: center;
+}
+
 .video-container {
     flex-flow: column;
     flex: 1;

@@ -72,6 +72,10 @@ export async function createPeerConnection(caller: boolean, peerConnId: string, 
     peerConnection.ontrack = (event) => {
         trackHandler(event.streams[0], event.track);
     }
+    console.log("Peer Conn State", peerConnId, peerConnection.connectionState);
+    peerConnection.onconnectionstatechange = () => {
+        console.log("Peer Conn State", peerConnId, peerConnection.connectionState);
+    }
 
     const pendingCandidates = [];
     let remoteDescriptionSet = false;
@@ -85,17 +89,19 @@ export async function createPeerConnection(caller: boolean, peerConnId: string, 
                 pendingCandidates.push(message.data);
             }
         } else if (message.type === "offer") {
+            console.log("Offer Received", peerConnId);
             await peerConnection.setRemoteDescription(message.data);
+            remoteDescriptionSet = true;
+            for (const candidate of pendingCandidates) {
+                peerConnection.addIceCandidate(candidate);
+            }
             await peerConnection.setLocalDescription(await peerConnection.createAnswer());
             signalService.send({
                 type: "answer",
                 data: peerConnection.localDescription,
             });
-            remoteDescriptionSet = true;
-            for (const candidate of pendingCandidates) {
-                peerConnection.addIceCandidate(candidate);
-            }
         } else if (message.type === "answer") {
+            console.log("Answer Received", peerConnId);
             await peerConnection.setRemoteDescription(message.data);
             remoteDescriptionSet = true;
             for (const candidate of pendingCandidates) {
@@ -112,7 +118,9 @@ export async function createPeerConnection(caller: boolean, peerConnId: string, 
     };
 
     if (caller) {
+        console.log("Caller");
         peerConnection.onnegotiationneeded = async () => {
+            console.log("Negotiation Needed");
             await peerConnection.setLocalDescription(await peerConnection.createOffer());
             signalService.send({
                 type: "offer",

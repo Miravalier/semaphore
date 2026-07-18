@@ -139,6 +139,8 @@ class Connection:
             signalingMessage: SignalingMessage = SignalingMessage.model_validate(request.data)
             dest_conn_id = signalingMessage.connId
             signalingMessage.connId = self.conn_id
+            if signalingMessage.type in (SignalingMessageType.ANSWER, SignalingMessageType.OFFER):
+                print(self.conn_id, "sent", signalingMessage.type, "to", dest_conn_id)
             await websocket_broadcast(WebsocketMessage(
                 type=WebsocketMessageType.SIGNALING,
                 data=signalingMessage,
@@ -204,7 +206,6 @@ async def alerts_websocket(websocket: WebSocket):
     connection.add_pool(connection.conn_id)
 
     try:
-        print("Sending connect")
         await connection.send_message(WebsocketMessage(
             type=WebsocketMessageType.CONNECT,
             data=ServerConnectData(connId=connection.conn_id),

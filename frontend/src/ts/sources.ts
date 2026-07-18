@@ -96,6 +96,7 @@ export async function getMicrophoneStream(): Promise<MediaStream> {
                 noiseSuppression: true,
                 autoGainControl: {exact: false},
             },
+            video: false,
         });
     }
 }
