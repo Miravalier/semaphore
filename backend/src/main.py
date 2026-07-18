@@ -78,16 +78,10 @@ class ServerConnectData(BaseModel):
     connId: str
 
 
-class SignalingMessageType(str, Enum):
-    CANDIDATE = "candidate"
-    OFFER = "offer"
-    ANSWER = "answer"
-
-
 class SignalingMessage(BaseModel):
     connId: str
-    type: SignalingMessageType
-    data: Any
+    description: Any = None
+    candidate: Any = None
 
 
 class RoomJoinData(BaseModel):
@@ -139,8 +133,6 @@ class Connection:
             signalingMessage: SignalingMessage = SignalingMessage.model_validate(request.data)
             dest_conn_id = signalingMessage.connId
             signalingMessage.connId = self.conn_id
-            if signalingMessage.type in (SignalingMessageType.ANSWER, SignalingMessageType.OFFER):
-                print(self.conn_id, "sent", signalingMessage.type, "to", dest_conn_id)
             await websocket_broadcast(WebsocketMessage(
                 type=WebsocketMessageType.SIGNALING,
                 data=signalingMessage,

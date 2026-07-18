@@ -1,11 +1,10 @@
 import * as Api from "./api";
-import { sleep } from "./async";
 
 
 export type SignalingMessage = {
     connId?: string;
-    type: "candidate" | "offer" | "answer";
-    data: any;
+    description?: any;
+    candidate?: any;
 };
 
 
@@ -65,76 +64,58 @@ export async function createPeerConnection(polite: boolean, peerConnId: string, 
         console.log("Peer Conn State", peerConnId, peerConnection.connectionState);
     }
 
-    let pendingCandidates = [];
-    let remoteDescriptionSet = false;
+    let ignoreOffer = false;
+    let isSettingRemoteAnswerPending = false;
+    let makingOffer = false;
 
     const signalService = new SignalService(peerConnId, websocketService, async (message: SignalingMessage) => {
-        if (message.type === "candidate") {
-            if (remoteDescriptionSet) {
-                await peerConnection.addIceCandidate(message.data);
-            } else {
-                console.log("Candidate too early!");
-                pendingCandidates.push(message.data);
-            }
-        } else if (message.type === "offer") {
-            console.log("Offer Received", peerConnId);
-            if (peerConnection.signalingState != "stable") {
-                if (!polite) return;
-                await Promise.all([
-                    peerConnection.setLocalDescription({type: "rollback"}),
-                    peerConnection.setRemoteDescription(message.data),
-                ]);
-            } else {
-                await peerConnection.setRemoteDescription(message.data);
-            }
-            remoteDescriptionSet = true;
-            for (const candidate of pendingCandidates) {
-                await peerConnection.addIceCandidate(candidate);
-            }
-            pendingCandidates = [];
-            await peerConnection.setLocalDescription(await peerConnection.createAnswer());
-            signalService.send({
-                type: "answer",
-                data: peerConnection.localDescription,
-            });
-        } else if (message.type === "answer") {
-            console.log("Answer Received", peerConnId);
-            try {
-                await peerConnection.setRemoteDescription(message.data);
-            } catch {
-                console.log("Received duplicate answer - possibly in response to a duplicate offer that was delayed.");
+        const {candidate, description} = message;
+        if (description) {
+            const readyForOffer = !makingOffer && (peerConnection.signalingState === "stable" || isSettingRemoteAnswerPending);
+            const offerCollision = description.type === "offer" && !readyForOffer;
+            ignoreOffer = !polite && offerCollision;
+            if (ignoreOffer) {
                 return;
             }
-            remoteDescriptionSet = true;
-            for (const candidate of pendingCandidates) {
-                await peerConnection.addIceCandidate(candidate);
+            isSettingRemoteAnswerPending = description.type === "answer";
+            await peerConnection.setRemoteDescription(description);
+            isSettingRemoteAnswerPending = false;
+            if (description.type === "offer") {
+                await peerConnection.setLocalDescription();
+                signalService.send({ description: peerConnection.localDescription });
             }
-            pendingCandidates = [];
+        } else if (candidate) {
+            try {
+                await peerConnection.addIceCandidate(candidate);
+            } catch (err) {
+                if (!ignoreOffer) {
+                    throw err;
+                }
+            }
         }
     });
 
     peerConnection.onicecandidate = async (event) => {
-        signalService.send({
-            type: "candidate",
-            data: event.candidate,
-        });
+        signalService.send({ candidate: event.candidate });
     };
 
     peerConnection.onnegotiationneeded = async () => {
-        const offer = await peerConnection.createOffer();
-        if (peerConnection.signalingState != "stable") {
-            // A remote offer may have been received while we were creating the offer,
-            // in which case we need to stop with our offer
-            return;
+        try {
+            makingOffer = true;
+            await peerConnection.setLocalDescription();
+            await signalService.send({ description: peerConnection.localDescription });
+            // TODO maybe re-send this? see commented code below
+        } finally {
+            makingOffer = false;
         }
-        await peerConnection.setLocalDescription(offer);
-        while (peerConnection.connectionState != "connected") {
-            await signalService.send({
-                type: "offer",
-                data: peerConnection.localDescription,
-            });
-            await sleep(100);
-        }
+        ///////////
+        // while (peerConnection.connectionState != "connected") {
+        //     await signalService.send({
+        //         type: "offer",
+        //         data: peerConnection.localDescription,
+        //     });
+        //     await sleep(100);
+        // }
     }
 
     peerConnection.addEventListener("peerclose", () => {
