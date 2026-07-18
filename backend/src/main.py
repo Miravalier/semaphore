@@ -118,7 +118,7 @@ class Connection:
     pool_ids: set[str] = field(default_factory=set)
     room_id: Optional[str] = None
     conn_id: str = field(default_factory=generate_uuid)
-    ready_peers: set[str] = set()
+    ready_peers: set[str] = field(default_factory=set)
 
     def __hash__(self):
         return hash(id(self))
