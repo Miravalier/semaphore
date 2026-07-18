@@ -56,6 +56,15 @@ window.addEventListener("load", async () => {
     websocketService.init();
 
     const viewport = document.body.appendChild(Elements.div("viewport"));
+
+    function updateViewportGrid() {
+        let streamCount = Object.values(outboundStreams).length;
+        for (const peer of Object.values(peers)) {
+            streamCount += Object.values(peer.streams).length;
+        }
+        viewport.style.gridTemplateColumns = `repeat(${Math.ceil(Math.sqrt(streamCount))}, 1fr)`;
+    }
+
     const startButton = viewport.appendChild(Elements.button(["connect"], "Connect", async () => {
         startButton.disabled = true;
         startButton.classList.add("hidden");
@@ -111,13 +120,19 @@ window.addEventListener("load", async () => {
             return null;
         }
 
-        function replaceStream(type: StreamType, stream: MediaStream) {
+        function setStream(type: StreamType, stream: MediaStream) {
+            let streamDelta = 0;
             const oldStream = findStream(type);
             if (oldStream !== null) {
                 removeStream(oldStream.stream.id);
+                streamDelta -= 1;
             }
             if (stream !== null) {
                 addStream(type, stream);
+                streamDelta += 1;
+            }
+            if (streamDelta != 0) {
+                updateViewportGrid();
             }
         }
 
@@ -153,10 +168,10 @@ window.addEventListener("load", async () => {
         const videoButton = localControlRegion.appendChild(Elements.button(["video"]));
         if (localVideo) {
             videoButton.innerHTML = `<i class="fa-solid fa-video"></i>`;
-            replaceStream(StreamType.VIDEO, await Sources.getVideoStream());
+            setStream(StreamType.VIDEO, await Sources.getVideoStream());
         } else {
             videoButton.innerHTML = `<i class="fa-solid fa-video-slash"></i>`;
-            replaceStream(StreamType.VIDEO, await Sources.getMicrophoneStream());
+            setStream(StreamType.VIDEO, await Sources.getMicrophoneStream());
         }
 
         videoButton.addEventListener("click", async () => {
@@ -172,10 +187,10 @@ window.addEventListener("load", async () => {
                 } else {
                     localVideo = false;
                 }
-                replaceStream(StreamType.VIDEO, await Sources.getVideoStream());
+                setStream(StreamType.VIDEO, await Sources.getVideoStream());
             } else {
                 videoButton.innerHTML = `<i class="fa-solid fa-video-slash"></i>`;
-                replaceStream(StreamType.VIDEO, await Sources.getMicrophoneStream());
+                setStream(StreamType.VIDEO, await Sources.getMicrophoneStream());
             }
         });
 
@@ -185,10 +200,10 @@ window.addEventListener("load", async () => {
             localScreenShare = !localScreenShare;
             if (localScreenShare) {
                 screenShareButton.innerHTML = `<i class="fa-solid fa-display"></i>`;
-                replaceStream(StreamType.SCREENSHARE, await Sources.getScreenShare());
+                setStream(StreamType.SCREENSHARE, await Sources.getScreenShare());
             } else {
                 screenShareButton.innerHTML = `<i class="fa-solid fa-display-slash"></i>`;
-                replaceStream(StreamType.SCREENSHARE, null);
+                setStream(StreamType.SCREENSHARE, null);
             }
         });
 
@@ -226,7 +241,7 @@ window.addEventListener("load", async () => {
                     // Lookup roomStream or create one if this is the first track of the stream
                     let roomStream = roomPeer.streams[stream.id];
                     if (!roomStream) {
-                        const remoteStreamContainer = viewport.appendChild(document.createElement("div"));
+                        const remoteStreamContainer = document.createElement("div");
                         remoteStreamContainer.classList.add("video-container");
                         remoteStreamContainer.appendChild(Elements.div("name-label", peerJoinData.name));
 
@@ -267,6 +282,10 @@ window.addEventListener("load", async () => {
                         };
                         roomPeer.streams[stream.id] = roomStream;
 
+                        updateViewportGrid();
+                        viewport.appendChild(remoteStreamContainer);
+
+
                         muteButton.addEventListener("click", () => {
                             roomStream.muted = !roomStream.muted;
                             if (roomStream.muted) {
@@ -286,6 +305,7 @@ window.addEventListener("load", async () => {
                                 console.log("Removing Remote Stream", roomStream.streamId);
                                 delete roomPeer.streams[roomStream.streamId];
                                 roomStream.container.remove();
+                                updateViewportGrid();
                             }
                         };
 
@@ -393,6 +413,7 @@ window.addEventListener("load", async () => {
                 roomPeer.connection.close();
                 roomPeer.connection.dispatchEvent(new CustomEvent("peerclose"));
                 delete peers[peerDropData.connId];
+                updateViewportGrid();
             }
         });
         await websocketService.send({type: Api.WebsocketMessageType.ROOM_JOIN, data: {roomId}});
