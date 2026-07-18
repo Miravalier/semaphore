@@ -61,6 +61,7 @@ class WebsocketMessageType(str, Enum):
     ROOM_DROP = 'roomDrop'
     PEER_JOIN = 'peerJoin'
     PEER_DROP = 'peerDrop'
+    PEER_READY = 'peerReady'
     NULL_RESPONSE = 'null'
 
 
@@ -97,8 +98,13 @@ class PeerDropData(BaseModel):
     connId: str
 
 
+class PeerReadyData(BaseModel):
+    connId: str
+
+
+connections: dict[str, Connection] = {}
 pools: dict[str, set[Connection]] = {}
-empty_pool = set()
+empty_pool: set[Connection] = set()
 
 def get_pool(pool_id: str) -> set[Connection]:
     return pools.get(pool_id, empty_pool)
@@ -107,10 +113,12 @@ def get_pool(pool_id: str) -> set[Connection]:
 @dataclass
 class Connection:
     socket: WebSocket
+    connected: bool = True
     name: str = ""
     pool_ids: set[str] = field(default_factory=set)
     room_id: Optional[str] = None
     conn_id: str = field(default_factory=generate_uuid)
+    ready_peers: set[str] = set()
 
     def __hash__(self):
         return hash(id(self))
@@ -130,13 +138,29 @@ class Connection:
         elif request.type == WebsocketMessageType.ROOM_DROP:
             await self.room_drop()
         elif request.type == WebsocketMessageType.SIGNALING:
-            signalingMessage: SignalingMessage = SignalingMessage.model_validate(request.data)
+            signalingMessage = SignalingMessage.model_validate(request.data)
             dest_conn_id = signalingMessage.connId
             signalingMessage.connId = self.conn_id
             await websocket_broadcast(WebsocketMessage(
                 type=WebsocketMessageType.SIGNALING,
                 data=signalingMessage,
             ), pool_id=dest_conn_id)
+        elif request.type == WebsocketMessageType.PEER_READY:
+            peerReadyData = PeerReadyData.model_validate(request.data)
+            self.ready_peers.add(peerReadyData.connId)
+
+            peer = connections.get(peerReadyData.connId, None)
+            if peer is None:
+                return None
+
+            while self.conn_id not in peer.ready_peers and peer.connected:
+                await asyncio.sleep(0.1)
+
+            if not peer.connected:
+                return None
+
+            return WebsocketMessage(type=WebsocketMessageType.PEER_READY, data=peerReadyData)
+
 
     async def send_message(self, message: WebsocketMessage):
         await self.socket.send_json(message.model_dump(mode="json"))
@@ -181,10 +205,12 @@ class Connection:
         self.pool_ids.discard(pool_id)
 
     async def cleanup(self):
+        self.connected = False
         if self.room_id:
             await self.room_drop()
         for pool_id in tuple(self.pool_ids):
             self.drop_pool(pool_id)
+        connections.pop(self.conn_id, None)
 
 
 @app.websocket("/api/ws")
@@ -194,6 +220,7 @@ async def alerts_websocket(websocket: WebSocket):
     connection = Connection(websocket)
     print("Connection Opened", connection.conn_id)
 
+    connections[connection.conn_id] = connection
     connection.add_pool('*')
     connection.add_pool(connection.conn_id)
 

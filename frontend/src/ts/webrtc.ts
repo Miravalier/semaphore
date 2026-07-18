@@ -95,10 +95,14 @@ export async function createPeerConnection(polite: boolean, peerConnId: string, 
         }
     });
 
+    // Both send the PEER READY notification and wait for the other peer's notification
+    await websocketService.send({type: Api.WebsocketMessageType.PEER_READY, data: {connId: peerConnId}});
+
     peerConnection.onicecandidate = async (event) => {
         signalService.send({ candidate: event.candidate });
     };
 
+    // Maybe sleep here for a bit if we're the polite peer, to reduce collisions?
     peerConnection.onnegotiationneeded = async () => {
         try {
             makingOffer = true;

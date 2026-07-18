@@ -45,6 +45,7 @@ export enum WebsocketMessageType {
     ROOM_DROP = 'roomDrop',
     PEER_JOIN = 'peerJoin',
     PEER_DROP = 'peerDrop',
+    PEER_READY = 'peerReady',
 };
 
 export type ClientConnectData = {
