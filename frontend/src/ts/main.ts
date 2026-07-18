@@ -212,10 +212,10 @@ window.addEventListener("load", async () => {
             }
         });
 
-        const settingsButton = localControlRegion.appendChild(Elements.button(["settings"], `<i class="fa-solid fa-gear"></i>`));
-        settingsButton.addEventListener("click", () => {
+        // const settingsButton = localControlRegion.appendChild(Elements.button(["settings"], `<i class="fa-solid fa-gear"></i>`));
+        // settingsButton.addEventListener("click", () => {
 
-        });
+        // });
 
         const endCallButton = localControlRegion.appendChild(Elements.button(["end-call"], `<i class="fa-solid fa-phone-hangup"></i>`));
         endCallButton.addEventListener("click", () => {
