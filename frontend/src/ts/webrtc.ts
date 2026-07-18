@@ -102,24 +102,14 @@ export async function createPeerConnection(polite: boolean, peerConnId: string, 
         signalService.send({ candidate: event.candidate });
     };
 
-    // Maybe sleep here for a bit if we're the polite peer, to reduce collisions?
     peerConnection.onnegotiationneeded = async () => {
         try {
             makingOffer = true;
             await peerConnection.setLocalDescription();
             await signalService.send({ description: peerConnection.localDescription });
-            // TODO maybe re-send this? see commented code below
         } finally {
             makingOffer = false;
         }
-        ///////////
-        // while (peerConnection.connectionState != "connected") {
-        //     await signalService.send({
-        //         type: "offer",
-        //         data: peerConnection.localDescription,
-        //     });
-        //     await sleep(100);
-        // }
     }
 
     peerConnection.addEventListener("peerclose", () => {
