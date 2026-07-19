@@ -126,17 +126,28 @@ video {
 }
 
 .dialog {
-    background: #3f3f3f80;
+    background: #3f3f3f;
     position: fixed;
     inset: 0;
     margin: 0;
     padding: 0;
     display: flex;
-    flex-flow: row wrap;
+    flex-flow: column nowrap;
     z-index: 1;
     overflow-y: auto;
     align-items: center;
     justify-content: space-evenly;
+}
+
+.dialog .field {
+    display: flex;
+    flex-flow: row nowrap;
+    justify-content: start;
+    align-items: center;
+}
+
+.dialog .field .label {
+    margin-right: 8px;
 }
 
 .dialog input, .dialog select, .dialog option {

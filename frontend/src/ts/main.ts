@@ -89,58 +89,66 @@ window.addEventListener("load", async () => {
                 localVideoElement.play();
             };
 
-            const audioContext = new AudioContext();
-            await audioContext.audioWorklet.addModule(noiseGateUrl);
-
-            const audioSource = audioContext.createMediaStreamSource(stream);
-            const audioChain: AudioNode[] = [audioSource];
-
-            const highPassFilter = audioContext.createBiquadFilter();
-            highPassFilter.type = 'highpass';
-            highPassFilter.frequency.value = 100;
-            audioChain.push(highPassFilter);
-
-            const lowPassFilter = audioContext.createBiquadFilter();
-            lowPassFilter.type = 'lowpass';
-            lowPassFilter.frequency.value = 9000;
-            audioChain.push(lowPassFilter);
-
-            const noiseGateNode = new AudioWorkletNode(audioContext, 'noisegate-audio-worklet');
-            noiseGateNode.parameters.get("attack").value = 0.025;
-            noiseGateNode.parameters.get("release").value = 0.05;
-            noiseGateNode.parameters.get("threshold").value = -40;
-            noiseGateNode.parameters.get("timeConstant").value = 0.0025;
-            noiseGateNode.port.onmessage = (ev) => {
-                if (ev.data.speaking) {
-                    console.log("Speaking");
-                    localVideoContainer.classList.add("speaking");
-                } else {
-                    console.log("Silent");
-                    localVideoContainer.classList.remove("speaking");
-                }
-            }
-            audioChain.push(noiseGateNode);
-
-            const mediaStreamDestination = audioContext.createMediaStreamDestination();
-            audioChain.push(mediaStreamDestination);
-
-            let previousNode: AudioNode | null = null;
-            for (const currentNode of audioChain) {
-                if (previousNode !== null) {
-                    previousNode.connect(currentNode);
-                }
-                previousNode = currentNode;
-            }
-
+            let audioContext: AudioContext | null = null;
             const tracks: MediaStreamTrack[] = [];
-            for (const track of stream.getVideoTracks()) {
-                tracks.push(track);
-            }
-            for (const track of mediaStreamDestination.stream.getTracks()) {
-                tracks.push(track);
+
+            if (type === StreamType.VIDEO) {
+                audioContext = new AudioContext();
+                await audioContext.audioWorklet.addModule(noiseGateUrl);
+
+                const audioSource = audioContext.createMediaStreamSource(stream);
+                const audioChain: AudioNode[] = [audioSource];
+
+                const highPassFilter = audioContext.createBiquadFilter();
+                highPassFilter.type = 'highpass';
+                highPassFilter.frequency.value = 100;
+                audioChain.push(highPassFilter);
+
+                const lowPassFilter = audioContext.createBiquadFilter();
+                lowPassFilter.type = 'lowpass';
+                lowPassFilter.frequency.value = 9000;
+                audioChain.push(lowPassFilter);
+
+                const noiseGateNode = new AudioWorkletNode(audioContext, 'noisegate-audio-worklet');
+                noiseGateNode.parameters.get("attack").value = 0.025;
+                noiseGateNode.parameters.get("release").value = 0.05;
+                noiseGateNode.parameters.get("threshold").value = -40;
+                noiseGateNode.parameters.get("timeConstant").value = 0.0025;
+                noiseGateNode.port.onmessage = (ev) => {
+                    if (ev.data.speaking) {
+                        console.log("Speaking");
+                        localVideoContainer.classList.add("speaking");
+                    } else {
+                        console.log("Silent");
+                        localVideoContainer.classList.remove("speaking");
+                    }
+                }
+                audioChain.push(noiseGateNode);
+
+                const mediaStreamDestination = audioContext.createMediaStreamDestination();
+                audioChain.push(mediaStreamDestination);
+
+                let previousNode: AudioNode | null = null;
+                for (const currentNode of audioChain) {
+                    if (previousNode !== null) {
+                        previousNode.connect(currentNode);
+                    }
+                    previousNode = currentNode;
+                }
+
+                for (const track of stream.getVideoTracks()) {
+                    tracks.push(track);
+                }
+                for (const track of mediaStreamDestination.stream.getTracks()) {
+                    tracks.push(track);
+                }
+            } else {
+                for (const track of stream.getTracks()) {
+                    tracks.push(track);
+                }
             }
 
-            outboundStreams[stream.id] = {type: type, stream: stream, tracks: tracks, audioContext: audioContext, container: localVideoContainer};
+            outboundStreams[stream.id] = {type, stream, tracks, audioContext, container: localVideoContainer};
             for (const peer of Object.values(peers)) {
                 for (const track of tracks) {
                     console.log("Sending Track", stream.id, track.kind, "to", peer.name);
@@ -162,7 +170,9 @@ window.addEventListener("load", async () => {
                 }
                 oldStream.stream.removeTrack(oldTrack);
             }
-            oldStream.audioContext.close();
+            if (oldStream.audioContext) {
+                oldStream.audioContext.close();
+            }
             delete outboundStreams[id];
             console.log("Removing Outbound Stream", oldStream.stream.id);
         }
@@ -192,9 +202,9 @@ window.addEventListener("load", async () => {
             }
         }
 
-        await Sources.selectDevices();
+        await Sources.selectDevices(Sources.SelectDeviceType.VideoAllowed);
 
-        const localControlRegion = document.body.appendChild(document.createElement("div"));
+        const localControlRegion = document.createElement("div");
         localControlRegion.classList.add("control-region");
 
         let localMute = false;
@@ -225,52 +235,69 @@ window.addEventListener("load", async () => {
         if (localVideo) {
             videoButton.innerHTML = `<i class="fa-solid fa-video"></i>`;
             setStream(StreamType.VIDEO, await Sources.getVideoStream());
-        } else {
+        } else if (Sources.audioIsSelected()) {
             videoButton.innerHTML = `<i class="fa-solid fa-video-slash"></i>`;
             setStream(StreamType.VIDEO, await Sources.getMicrophoneStream());
+        } else {
+            startButton.disabled = false;
+            startButton.classList.remove("hidden");
+            throw "No Audio Device selected";
         }
 
+        document.body.appendChild(localControlRegion);
+
         videoButton.addEventListener("click", async () => {
-            localVideo = !localVideo;
-            if (localVideo) {
+            if (!localVideo) {
                 // If no video is selected, prompt the user to select a video input
                 if (!Sources.videoIsSelected()) {
-                    await Sources.selectDevices();
+                    await Sources.selectDevices(Sources.SelectDeviceType.VideoRequired);
                 }
                 // User might *still* not have selected a video input
-                if (Sources.isElectron()) {
-                    if (Sources.videoIsSelected()) {
-                        videoButton.innerHTML = `<i class="fa-solid fa-video"></i>`;
-                    } else {
-                        localVideo = false;
-                    }
-                } else {
-                    videoButton.innerHTML = `<i class="fa-solid fa-video"></i>`;
+                if (!Sources.videoIsSelected()) {
+                    throw "No video selected";
                 }
                 setStream(StreamType.VIDEO, await Sources.getVideoStream());
             } else {
-                videoButton.innerHTML = `<i class="fa-solid fa-video-slash"></i>`;
                 setStream(StreamType.VIDEO, await Sources.getMicrophoneStream());
+            }
+            localVideo = !localVideo;
+            if (localVideo) {
+                videoButton.innerHTML = `<i class="fa-solid fa-video"></i>`;
+            } else {
+                videoButton.innerHTML = `<i class="fa-solid fa-video-slash"></i>`;
             }
         });
 
         let localScreenShare = false;
         const screenShareButton = localControlRegion.appendChild(Elements.button(["screen-share"], `<i class="fa-solid fa-display-slash"></i>`));
         screenShareButton.addEventListener("click", async () => {
+            if (!localScreenShare) {
+                setStream(StreamType.SCREENSHARE, await Sources.getScreenShare());
+            } else {
+                setStream(StreamType.SCREENSHARE, null);
+            }
             localScreenShare = !localScreenShare;
             if (localScreenShare) {
                 screenShareButton.innerHTML = `<i class="fa-solid fa-display"></i>`;
-                setStream(StreamType.SCREENSHARE, await Sources.getScreenShare());
             } else {
                 screenShareButton.innerHTML = `<i class="fa-solid fa-display-slash"></i>`;
-                setStream(StreamType.SCREENSHARE, null);
             }
         });
 
-        // const settingsButton = localControlRegion.appendChild(Elements.button(["settings"], `<i class="fa-solid fa-gear"></i>`));
-        // settingsButton.addEventListener("click", () => {
-
-        // });
+        const settingsButton = localControlRegion.appendChild(Elements.button(["settings"], `<i class="fa-solid fa-gear"></i>`));
+        settingsButton.addEventListener("click", async () => {
+            if (localVideo) {
+                await Sources.selectDevices(Sources.SelectDeviceType.VideoRequired);
+                if (Sources.videoIsSelected()) {
+                    setStream(StreamType.VIDEO, await Sources.getVideoStream());
+                } else {
+                    videoButton.click();
+                }
+            } else {
+                await Sources.selectDevices(Sources.SelectDeviceType.AudioOnly);
+                setStream(StreamType.VIDEO, await Sources.getMicrophoneStream());
+            }
+        });
 
         const endCallButton = localControlRegion.appendChild(Elements.button(["end-call"], `<i class="fa-solid fa-phone-hangup"></i>`));
         endCallButton.addEventListener("click", () => {
