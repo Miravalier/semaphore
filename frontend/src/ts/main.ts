@@ -32,6 +32,8 @@ type RoomPeer = {
 type OutboundStream = {
     type: StreamType,
     stream: MediaStream,
+    audioContext: AudioContext,
+    tracks: MediaStreamTrack[],
     container: HTMLDivElement,
 };
 
@@ -70,7 +72,7 @@ window.addEventListener("load", async () => {
         startButton.disabled = true;
         startButton.classList.add("hidden");
 
-        function addStream(type: StreamType, stream: MediaStream) {
+        async function addStream(type: StreamType, stream: MediaStream) {
             const localVideoContainer = viewport.appendChild(document.createElement("div"));
             localVideoContainer.classList.add("video-container");
 
@@ -87,9 +89,61 @@ window.addEventListener("load", async () => {
                 localVideoElement.play();
             };
 
-            outboundStreams[stream.id] = {type: type, stream: stream, container: localVideoContainer};
+            const audioContext = new AudioContext();
+            await audioContext.audioWorklet.addModule(noiseGateUrl);
+
+            const audioSource = audioContext.createMediaStreamSource(stream);
+            const audioChain: AudioNode[] = [audioSource];
+
+            const highPassFilter = audioContext.createBiquadFilter();
+            highPassFilter.type = 'highpass';
+            highPassFilter.frequency.value = 100;
+            audioChain.push(highPassFilter);
+
+            const lowPassFilter = audioContext.createBiquadFilter();
+            lowPassFilter.type = 'lowpass';
+            lowPassFilter.frequency.value = 9000;
+            audioChain.push(lowPassFilter);
+
+            const noiseGateNode = new AudioWorkletNode(audioContext, 'noisegate-audio-worklet');
+            noiseGateNode.parameters.get("attack").value = 0.025;
+            noiseGateNode.parameters.get("release").value = 0.05;
+            noiseGateNode.parameters.get("threshold").value = -40;
+            noiseGateNode.parameters.get("timeConstant").value = 0.0025;
+            noiseGateNode.port.onmessage = (ev) => {
+                if (ev.data.speaking) {
+                    console.log("Speaking");
+                    localVideoContainer.classList.add("speaking");
+                } else {
+                    console.log("Silent");
+                    localVideoContainer.classList.remove("speaking");
+                }
+            }
+            audioChain.push(noiseGateNode);
+
+            const mediaStreamDestination = audioContext.createMediaStreamDestination();
+            audioChain.push(mediaStreamDestination);
+
+            let previousNode: AudioNode | null = null;
+            for (const currentNode of audioChain) {
+                if (previousNode !== null) {
+                    previousNode.connect(currentNode);
+                }
+                previousNode = currentNode;
+            }
+
+            const tracks: MediaStreamTrack[] = [];
+            for (const track of stream.getVideoTracks()) {
+                tracks.push(track);
+            }
+            for (const track of mediaStreamDestination.stream.getTracks()) {
+                tracks.push(track);
+            }
+
+            outboundStreams[stream.id] = {type: type, stream: stream, tracks: tracks, audioContext: audioContext, container: localVideoContainer};
             for (const peer of Object.values(peers)) {
-                for (const track of stream.getTracks()) {
+                for (const track of tracks) {
+                    console.log("Sending Track", stream.id, track.kind, "to", peer.name);
                     peer.connection.addTrack(track, stream);
                 }
             }
@@ -98,7 +152,7 @@ window.addEventListener("load", async () => {
         function removeStream(id: string) {
             const oldStream = outboundStreams[id];
             oldStream.container.remove();
-            for (const oldTrack of oldStream.stream.getTracks()) {
+            for (const oldTrack of oldStream.tracks) {
                 console.log("Removing Outbound Track", oldTrack.id, "From Stream", oldStream.stream.id);
                 for (const peer of Object.values(peers)) {
                     const sender = peer.connection.getSenders().find(s => s.track && s.track.id == oldTrack.id);
@@ -108,6 +162,7 @@ window.addEventListener("load", async () => {
                 }
                 oldStream.stream.removeTrack(oldTrack);
             }
+            oldStream.audioContext.close();
             delete outboundStreams[id];
             console.log("Removing Outbound Stream", oldStream.stream.id);
         }
@@ -336,26 +391,10 @@ window.addEventListener("load", async () => {
                         const audioSource = audioContext.createMediaStreamSource(stream);
                         const audioChain: AudioNode[] = [audioSource];
 
-                        const highPassFilter = audioContext.createBiquadFilter();
-                        highPassFilter.type = 'highpass';
-                        highPassFilter.frequency.value = 100;
-                        audioChain.push(highPassFilter);
-
-                        const lowPassFilter = audioContext.createBiquadFilter();
-                        lowPassFilter.type = 'lowpass';
-                        lowPassFilter.frequency.value = 9000;
-                        audioChain.push(lowPassFilter);
-
                         const noiseGateNode = new AudioWorkletNode(audioContext, 'noisegate-audio-worklet');
-                        /*
-                            {name: 'attack', defaultValue: 0.05, minValue: 0, maxValue: 0.1},
-                            {name: 'release', defaultValue: 0.05, minValue: 0, maxValue: 0.1},
-                            {name: 'threshold', defaultValue: -40, minValue: -100, maxValue: 0},
-                            {name: 'timeConstant', defaultValue: 0.0025, minValue: 0, maxValue: 0.1}
-                        */
-                        noiseGateNode.parameters.get("attack").value = 0.05;
-                        noiseGateNode.parameters.get("release").value = 0.05;
-                        noiseGateNode.parameters.get("threshold").value = -40;
+                        noiseGateNode.parameters.get("attack").value = 0.01;
+                        noiseGateNode.parameters.get("release").value = 0.01;
+                        noiseGateNode.parameters.get("threshold").value = -80;
                         noiseGateNode.parameters.get("timeConstant").value = 0.0025;
                         noiseGateNode.port.onmessage = (ev) => {
                             if (ev.data.speaking) {
@@ -401,7 +440,7 @@ window.addEventListener("load", async () => {
                 peers[peerJoinData.connId] = roomPeer;
                 for (const streamData of Object.values(outboundStreams)) {
                     const outboundStream = streamData.stream;
-                    for (const track of outboundStream.getTracks()) {
+                    for (const track of streamData.tracks) {
                         console.log("Sending Track", outboundStream.id, track.kind, "to", peerJoinData.name);
                         roomPeer.connection.addTrack(track, outboundStream);
                     }

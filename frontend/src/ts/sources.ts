@@ -32,7 +32,7 @@ export function videoIsSelected(): boolean {
 export async function selectDevices(): Promise<void> {
     if (!isElectron()) return;
 
-    const dialogResult = new Future<{audioId: string, videoId: string}>();
+    const dialogResult = new Future<{audioUuid: string, videoUuid: string}>();
     const devices = await navigator.mediaDevices.enumerateDevices();
     const dialog = document.body.appendChild(Elements.div("dialog"));
     const audioSelect = dialog.appendChild(document.createElement("select"));
@@ -55,16 +55,16 @@ export async function selectDevices(): Promise<void> {
         }
     }
     dialog.appendChild(Elements.button([], "Join Call", () => {
-        dialogResult.resolve({audioId: audioSelect.value, videoId: videoSelect.value});
+        dialogResult.resolve({audioUuid: audioSelect.value, videoUuid: videoSelect.value});
     }));
-    const {audioId, videoId} = await dialogResult;
+    const {audioUuid, videoUuid} = await dialogResult;
     dialog.remove();
 
-    selectedAudioDevice = deviceMap[audioId];
-    if (videoId === "") {
+    selectedAudioDevice = deviceMap[audioUuid];
+    if (videoUuid === "") {
         selectedVideoDevice = null;
     } else {
-        selectedVideoDevice = deviceMap[videoId];
+        selectedVideoDevice = deviceMap[videoUuid];
     }
 }
 
@@ -168,9 +168,7 @@ export async function getScreenShare(): Promise<MediaStream> {
         await electronApi.selectScreen(screenId);
         return await navigator.mediaDevices.getDisplayMedia({
             audio: {
-                echoCancellation: true,
                 noiseSuppression: false,
-                autoGainControl: false,
             },
             video: {
                 width: 1920,
@@ -181,9 +179,7 @@ export async function getScreenShare(): Promise<MediaStream> {
     } else {
         return await navigator.mediaDevices.getDisplayMedia({
             audio: {
-                echoCancellation: true,
                 noiseSuppression: false,
-                autoGainControl: {exact: false},
             },
             video: true,
         });
