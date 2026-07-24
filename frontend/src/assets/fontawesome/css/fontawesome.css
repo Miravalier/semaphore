@@ -1182,6 +1182,8 @@
 .fa-desktop-slash { --fa: "\e2fa"; }
 .fa-display { --fa: "\e163"; }
 .fa-display-slash { --fa: "\e2fa"; }
+.fa-eye { --fa: "\f06e"; }
+.fa-eye-slash { --fa: "\f070"; }
 .fa-gear { --fa: "\f013"; }
 .fa-microphone { --fa: "\f130"; }
 .fa-microphone-signal-meter { --fa: "\e760"; }

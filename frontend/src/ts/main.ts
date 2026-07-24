@@ -3,7 +3,7 @@ import * as Sources from "./sources";
 import * as Api from "./api";
 import { createPeerConnection } from "./webrtc";
 import { animals, adjectives } from "./names";
-import { randomChoice } from "./utils";
+import { intFromStringByHashing, randomChoice } from "./utils";
 
 import noiseGateUrl from '../assets/audio-worklets/noisegate.js?url';
 
@@ -14,6 +14,7 @@ enum StreamType {
 
 type RoomStream = {
     streamId: string;
+    intervalId: number;
     container: HTMLDivElement;
     volumeInput: HTMLInputElement;
     videoElement: HTMLVideoElement;
@@ -39,10 +40,34 @@ type OutboundStream = {
 
 let localConnId: string = null as any;
 let localName = `${randomChoice(adjectives)} ${randomChoice(animals)}`;
+let localPriority: number = 0;
+let localAnalyser: AnalyserNode | null = null;
 const roomId = "default";
 const websocketService: Api.WebsocketService = new Api.WebsocketService();
 const peers: {[connId: string]: RoomPeer} = {};
 const outboundStreams: {[id: string]: OutboundStream} = {};
+
+type ConnectionSettings = {
+    priority: number;
+    gain: number;
+}
+
+
+function saveConnectionSettings(connId: string, settings: ConnectionSettings) {
+    localStorage.setItem(`${connId}-settings`, JSON.stringify(settings));
+}
+
+async function loadConnectionSettings(connId: string): Promise<ConnectionSettings> {
+    const serializedSettings = localStorage.getItem(`${connId}-settings`);
+    if (serializedSettings) {
+        return JSON.parse(serializedSettings);
+    } else {
+        return {
+            priority: await intFromStringByHashing(connId),
+            gain: 4.0,
+        }
+    }
+}
 
 
 window.addEventListener("load", async () => {
@@ -52,6 +77,7 @@ window.addEventListener("load", async () => {
         if (message.type === Api.WebsocketMessageType.CONNECT) {
             const connectData: Api.ServerConnectData = message.data;
             localConnId = connectData.connId;
+            localPriority = await intFromStringByHashing(localConnId);
             await websocketService.send({type: Api.WebsocketMessageType.CONNECT, data: {name: localName}});
             console.log(`I am ${localName} ${localConnId}`);
         }
@@ -72,9 +98,10 @@ window.addEventListener("load", async () => {
         startButton.disabled = true;
         startButton.classList.add("hidden");
 
-        async function addStream(type: StreamType, stream: MediaStream) {
+        async function addOutboundStream(type: StreamType, stream: MediaStream) {
             const localVideoContainer = viewport.appendChild(document.createElement("div"));
             localVideoContainer.classList.add("video-container");
+            localVideoContainer.style.order = localPriority.toString();
 
             if (stream.getVideoTracks().length == 0) {
                 localVideoContainer.appendChild(Elements.div("name-label", localName));
@@ -99,6 +126,11 @@ window.addEventListener("load", async () => {
                 const audioSource = audioContext.createMediaStreamSource(stream);
                 const audioChain: AudioNode[] = [audioSource];
 
+                const analyser = audioContext.createAnalyser();
+                analyser.fftSize = 2048;
+                audioChain.push(analyser);
+                localAnalyser = analyser;
+
                 const highPassFilter = audioContext.createBiquadFilter();
                 highPassFilter.type = 'highpass';
                 highPassFilter.frequency.value = 100;
@@ -112,14 +144,12 @@ window.addEventListener("load", async () => {
                 const noiseGateNode = new AudioWorkletNode(audioContext, 'noisegate-audio-worklet');
                 noiseGateNode.parameters.get("attack").value = 0.025;
                 noiseGateNode.parameters.get("release").value = 0.05;
-                noiseGateNode.parameters.get("threshold").value = -40;
+                noiseGateNode.parameters.get("threshold").value = Sources.getInputThreshold();
                 noiseGateNode.parameters.get("timeConstant").value = 0.0025;
                 noiseGateNode.port.onmessage = (ev) => {
                     if (ev.data.speaking) {
-                        console.log("Speaking");
                         localVideoContainer.classList.add("speaking");
                     } else {
-                        console.log("Silent");
                         localVideoContainer.classList.remove("speaking");
                     }
                 }
@@ -157,8 +187,11 @@ window.addEventListener("load", async () => {
             }
         }
 
-        function removeStream(id: string) {
+        function removeOutboundStream(id: string) {
             const oldStream = outboundStreams[id];
+            if (oldStream.type === StreamType.VIDEO) {
+                localAnalyser = null;
+            }
             oldStream.container.remove();
             for (const oldTrack of oldStream.tracks) {
                 console.log("Removing Outbound Track", oldTrack.id, "From Stream", oldStream.stream.id);
@@ -177,7 +210,7 @@ window.addEventListener("load", async () => {
             console.log("Removing Outbound Stream", oldStream.stream.id);
         }
 
-        function findStream(type: StreamType): OutboundStream | null {
+        function findOutboundStream(type: StreamType): OutboundStream | null {
             for (const outboundStream of Object.values(outboundStreams)) {
                 if (outboundStream.type === type) {
                     return outboundStream;
@@ -186,15 +219,15 @@ window.addEventListener("load", async () => {
             return null;
         }
 
-        function setStream(type: StreamType, stream: MediaStream) {
+        function setOutboundStream(type: StreamType, stream: MediaStream) {
             let streamDelta = 0;
-            const oldStream = findStream(type);
+            const oldStream = findOutboundStream(type);
             if (oldStream !== null) {
-                removeStream(oldStream.stream.id);
+                removeOutboundStream(oldStream.stream.id);
                 streamDelta -= 1;
             }
             if (stream !== null) {
-                addStream(type, stream);
+                addOutboundStream(type, stream);
                 streamDelta += 1;
             }
             if (streamDelta != 0) {
@@ -202,7 +235,42 @@ window.addEventListener("load", async () => {
             }
         }
 
-        await Sources.selectDevices(Sources.SelectDeviceType.VideoAllowed);
+        function deleteInboundStream(connId: string, streamId: string) {
+            console.log("Removing Remote Stream", streamId);
+
+            const peer = peers[connId];
+            if (!peer) {
+                return;
+            }
+
+            const stream = peer.streams[streamId];
+            if (!stream) {
+                return;
+            }
+
+            delete peer.streams[streamId];
+            if (stream.intervalId !== 0) {
+                clearInterval(stream.intervalId);
+            }
+            stream.container.remove();
+            updateViewportGrid();
+        }
+
+        function deleteInboundPeer(connId: string) {
+            const peer = peers[connId];
+            if (!peer) {
+                return;
+            }
+
+            for (const streamId of Object.keys(peer.streams)) {
+                deleteInboundStream(connId, streamId);
+            }
+            peer.connection.close();
+            peer.connection.dispatchEvent(new CustomEvent("peerclose"));
+            delete peers[connId];
+        }
+
+        await Sources.selectDevices(Sources.SelectDeviceType.InitialSelect, localAnalyser);
 
         const localControlRegion = document.createElement("div");
         localControlRegion.classList.add("control-region");
@@ -234,10 +302,10 @@ window.addEventListener("load", async () => {
         const videoButton = localControlRegion.appendChild(Elements.button(["video"]));
         if (localVideo) {
             videoButton.innerHTML = `<i class="fa-solid fa-video"></i>`;
-            setStream(StreamType.VIDEO, await Sources.getVideoStream());
+            setOutboundStream(StreamType.VIDEO, await Sources.getVideoStream());
         } else if (Sources.audioIsSelected()) {
             videoButton.innerHTML = `<i class="fa-solid fa-video-slash"></i>`;
-            setStream(StreamType.VIDEO, await Sources.getMicrophoneStream());
+            setOutboundStream(StreamType.VIDEO, await Sources.getMicrophoneStream());
         } else {
             startButton.disabled = false;
             startButton.classList.remove("hidden");
@@ -250,15 +318,15 @@ window.addEventListener("load", async () => {
             if (!localVideo) {
                 // If no video is selected, prompt the user to select a video input
                 if (!Sources.videoIsSelected()) {
-                    await Sources.selectDevices(Sources.SelectDeviceType.VideoRequired);
+                    await Sources.selectDevices(Sources.SelectDeviceType.TurnOnVideo, localAnalyser);
                 }
                 // User might *still* not have selected a video input
                 if (!Sources.videoIsSelected()) {
                     throw "No video selected";
                 }
-                setStream(StreamType.VIDEO, await Sources.getVideoStream());
+                setOutboundStream(StreamType.VIDEO, await Sources.getVideoStream());
             } else {
-                setStream(StreamType.VIDEO, await Sources.getMicrophoneStream());
+                setOutboundStream(StreamType.VIDEO, await Sources.getMicrophoneStream());
             }
             localVideo = !localVideo;
             if (localVideo) {
@@ -272,9 +340,9 @@ window.addEventListener("load", async () => {
         const screenShareButton = localControlRegion.appendChild(Elements.button(["screen-share"], `<i class="fa-solid fa-display-slash"></i>`));
         screenShareButton.addEventListener("click", async () => {
             if (!localScreenShare) {
-                setStream(StreamType.SCREENSHARE, await Sources.getScreenShare());
+                setOutboundStream(StreamType.SCREENSHARE, await Sources.getScreenShare());
             } else {
-                setStream(StreamType.SCREENSHARE, null);
+                setOutboundStream(StreamType.SCREENSHARE, null);
             }
             localScreenShare = !localScreenShare;
             if (localScreenShare) {
@@ -287,15 +355,15 @@ window.addEventListener("load", async () => {
         const settingsButton = localControlRegion.appendChild(Elements.button(["settings"], `<i class="fa-solid fa-gear"></i>`));
         settingsButton.addEventListener("click", async () => {
             if (localVideo) {
-                await Sources.selectDevices(Sources.SelectDeviceType.VideoRequired);
+                await Sources.selectDevices(Sources.SelectDeviceType.SettingsWithVideo, localAnalyser);
                 if (Sources.videoIsSelected()) {
-                    setStream(StreamType.VIDEO, await Sources.getVideoStream());
+                    setOutboundStream(StreamType.VIDEO, await Sources.getVideoStream());
                 } else {
                     videoButton.click();
                 }
             } else {
-                await Sources.selectDevices(Sources.SelectDeviceType.AudioOnly);
-                setStream(StreamType.VIDEO, await Sources.getMicrophoneStream());
+                await Sources.selectDevices(Sources.SelectDeviceType.SettingsWithAudio, localAnalyser);
+                setOutboundStream(StreamType.VIDEO, await Sources.getMicrophoneStream());
             }
         });
 
@@ -307,15 +375,10 @@ window.addEventListener("load", async () => {
         websocketService.addMessageHandler(async (message) => {
             // Reconnect Handler
             if (message.type === Api.WebsocketMessageType.CONNECT) {
-                for (const [connId, roomPeer] of Object.entries(peers)) {
-                    for (const roomStream of Object.values(roomPeer.streams)) {
-                        roomStream.container.remove();
-                    }
-                    roomPeer.connection.close();
-                    roomPeer.connection.dispatchEvent(new CustomEvent("peerclose"));
-                    delete peers[connId];
-                    await websocketService.send({type: Api.WebsocketMessageType.ROOM_JOIN, data: {roomId}});
+                for (const connId of Object.keys(peers)) {
+                    deleteInboundPeer(connId);
                 }
+                await websocketService.send({type: Api.WebsocketMessageType.ROOM_JOIN, data: {roomId}});
             // Peer Join Handler
             } else if (message.type === Api.WebsocketMessageType.PEER_JOIN) {
                 const peerJoinData: Api.PeerJoinData = message.data;
@@ -324,6 +387,7 @@ window.addEventListener("load", async () => {
                 }
 
                 console.log("PEER CONNECTED", peerJoinData.name, peerJoinData.connId);
+                const connSettings = await loadConnectionSettings(peerJoinData.connId);
 
                 const roomPeer: RoomPeer = {name: peerJoinData.name, connId: peerJoinData.connId, connection: null, streams: {}};
                 roomPeer.connection = await createPeerConnection(localConnId > peerJoinData.connId, peerJoinData.connId, websocketService, async (stream, track) => {
@@ -334,6 +398,7 @@ window.addEventListener("load", async () => {
                         const remoteStreamContainer = document.createElement("div");
                         remoteStreamContainer.classList.add("video-container");
                         remoteStreamContainer.appendChild(Elements.div("name-label", peerJoinData.name));
+                        remoteStreamContainer.style.order = connSettings.priority.toString();
 
                         const remoteControlRegion = remoteStreamContainer.appendChild(document.createElement("div"));
                         remoteControlRegion.classList.add("control-region");
@@ -369,6 +434,7 @@ window.addEventListener("load", async () => {
                             volumeInput: volumeInput,
                             tracks: new Set(),
                             muted: false,
+                            intervalId: 0,
                         };
                         roomPeer.streams[stream.id] = roomStream;
 
@@ -392,10 +458,7 @@ window.addEventListener("load", async () => {
                             console.log("Removing Remote Track", ev.track.id, "from stream", roomStream.streamId);
                             roomStream.tracks.delete(ev.track.id);
                             if (roomStream.tracks.size == 0) {
-                                console.log("Removing Remote Stream", roomStream.streamId);
-                                delete roomPeer.streams[roomStream.streamId];
-                                roomStream.container.remove();
-                                updateViewportGrid();
+                                deleteInboundStream(roomPeer.connId, roomStream.streamId);
                             }
                         };
 
@@ -407,47 +470,57 @@ window.addEventListener("load", async () => {
 
                     // If this stream contains a video track, remove the name label from this container
                     if (track.kind === "video") {
-                        roomStream.container.querySelector(".name-label")?.remove();
+                        const nameLabel = roomStream.container.querySelector(".name-label");
+                        nameLabel.classList.add("hidden");
+                        nameLabel.textContent = `${nameLabel.textContent} (Video Hidden)`;
+                        const controlRegion = roomStream.container.querySelector(".control-region");
+                        let hidden = false;
+                        const hideButton = controlRegion.appendChild(Elements.button("hide", `<i class="fa-solid fa-eye"></i>`, () => {
+                            hidden = !hidden;
+                            if (hidden) {
+                                nameLabel.classList.remove("hidden");
+                                roomStream.videoElement.classList.add("hidden");
+                                hideButton.innerHTML = `<i class="fa-solid fa-eye-slash"></i>`;
+                            } else {
+                                nameLabel.classList.add("hidden");
+                                roomStream.videoElement.classList.remove("hidden");
+                                hideButton.innerHTML = `<i class="fa-solid fa-eye"></i>`;
+                            }
+                        }));
                     }
 
                     // If this is an audio track, hook it up to the audio element for this stream
                     if (track.kind === "audio") {
                         const audioContext = new AudioContext();
-                        await audioContext.audioWorklet.addModule(noiseGateUrl);
 
                         const audioSource = audioContext.createMediaStreamSource(stream);
                         const audioChain: AudioNode[] = [audioSource];
 
-                        const noiseGateNode = new AudioWorkletNode(audioContext, 'noisegate-audio-worklet');
-                        noiseGateNode.parameters.get("attack").value = 0.01;
-                        noiseGateNode.parameters.get("release").value = 0.01;
-                        noiseGateNode.parameters.get("threshold").value = -80;
-                        noiseGateNode.parameters.get("timeConstant").value = 0.0025;
-                        noiseGateNode.port.onmessage = (ev) => {
-                            if (ev.data.speaking) {
-                                roomStream.container.classList.add("speaking");
-                            } else {
-                                roomStream.container.classList.remove("speaking");
-                            }
-                        }
-                        audioChain.push(noiseGateNode);
+                        const analyser = audioContext.createAnalyser();
+                        analyser.fftSize = 2048;
+                        audioChain.push(analyser);
 
                         const gainNode = audioContext.createGain();
                         if (roomStream.muted) {
                             gainNode.gain.value = 0;
                         } else {
-                            gainNode.gain.value = 5.0;
+                            gainNode.gain.value = connSettings.gain;
                         }
                         audioChain.push(gainNode);
 
+                        roomStream.volumeInput.value = Math.round((gainNode.gain.value / 8.0) * 100.0).toString();
                         roomStream.volumeInput.addEventListener("input", () => {
                             let targetValue: number;
                             if (roomStream.muted) {
                                 targetValue = 0;
                             } else {
-                                targetValue = (parseFloat(roomStream.volumeInput.value) / 100.0) * 10.0;
+                                targetValue = (parseFloat(roomStream.volumeInput.value) / 100.0) * 8.0;
                             }
                             gainNode.gain.setTargetAtTime(targetValue, audioContext.currentTime, 0.015);
+                        });
+                        roomStream.volumeInput.addEventListener("change", () => {
+                            connSettings.gain = (parseFloat(roomStream.volumeInput.value) / 100.0) * 8.0;
+                            saveConnectionSettings(roomPeer.connId, connSettings);
                         });
 
                         const mediaStreamDestination = audioContext.createMediaStreamDestination();
@@ -462,6 +535,36 @@ window.addEventListener("load", async () => {
                         }
 
                         roomStream.audioElement.srcObject = mediaStreamDestination.stream;
+
+                        const timeDomainBuffer = new Uint8Array(analyser.frequencyBinCount);
+                        if (roomStream.intervalId !== 0) {
+                            clearInterval(roomStream.intervalId);
+                        }
+                        let speaking = false;
+                        let misses = 0;
+                        roomStream.intervalId = setInterval(() => {
+                            analyser.getByteTimeDomainData(timeDomainBuffer);
+                            let volume = 0.0;
+                            for (let i=0; i < timeDomainBuffer.length; i++) {
+                                volume += Math.abs(timeDomainBuffer[i] - 128) / 128;
+                            }
+                            if (speaking) {
+                                if (volume > 1.0) {
+                                    misses = 0;
+                                } else {
+                                    misses += 1;
+                                    if (misses >= 3) {
+                                        speaking = false;
+                                        roomStream.container.classList.remove("speaking");
+                                    }
+                                }
+                            } else {
+                                if (volume > 1.0) {
+                                    speaking = true;
+                                    roomStream.container.classList.add("speaking");
+                                }
+                            }
+                        }, 50);
                     }
                 });
                 peers[peerJoinData.connId] = roomPeer;
@@ -478,17 +581,7 @@ window.addEventListener("load", async () => {
                 if (peerDropData.connId == localConnId) {
                     return;
                 }
-                const roomPeer = peers[peerDropData.connId];
-                if (!roomPeer) {
-                    return;
-                }
-                for (const roomStream of Object.values(roomPeer.streams)) {
-                    roomStream.container.remove();
-                }
-                roomPeer.connection.close();
-                roomPeer.connection.dispatchEvent(new CustomEvent("peerclose"));
-                delete peers[peerDropData.connId];
-                updateViewportGrid();
+                deleteInboundPeer(peerDropData.connId);
             }
         });
         await websocketService.send({type: Api.WebsocketMessageType.ROOM_JOIN, data: {roomId}});

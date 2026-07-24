@@ -1182,6 +1182,8 @@
 .fa-desktop-slash { --fa: "\e2fa"; }
 .fa-display { --fa: "\e163"; }
 .fa-display-slash { --fa: "\e2fa"; }
+.fa-eye { --fa: "\f06e"; }
+.fa-eye-slash { --fa: "\f070"; }
 .fa-gear { --fa: "\f013"; }
 .fa-microphone { --fa: "\f130"; }
 .fa-microphone-signal-meter { --fa: "\e760"; }
@@ -1198,7 +1200,7 @@
 .fa-volume-xmark { --fa: "\f6a9"; }
 
 /*!
- * Font Awesome Pro 7.3.0 by @fontawesome - https://fontawesome.com
+ * Font Awesome Pro 7.3.1 by @fontawesome - https://fontawesome.com
  * License - https://fontawesome.com/license (Commercial License)
  * Copyright 2026 Fonticons, Inc.
  */
@@ -1229,7 +1231,7 @@
   --fa-style: 400;
 }
 /*!
- * Font Awesome Pro 7.3.0 by @fontawesome - https://fontawesome.com
+ * Font Awesome Pro 7.3.1 by @fontawesome - https://fontawesome.com
  * License - https://fontawesome.com/license (Commercial License)
  * Copyright 2026 Fonticons, Inc.
  */

@@ -25,6 +25,8 @@ camera:
     - 7.0.0
     - 7.1.0
     - 7.2.0
+    - 7.3.0
+    - 7.3.0
   label: Camera
   search:
     terms:
@@ -58,6 +60,8 @@ camera-slash:
     - 6.7.0
     - 7.0.0
     - 7.1.0
+    - 7.3.0
+    - 7.3.0
   label: Camera Slash
   search:
     terms:
@@ -144,6 +148,93 @@ display-slash:
     - solid
   unicode: e2fa
   voted: false
+eye:
+  aliases:
+    unicodes:
+      composite:
+        - 1f441
+      secondary:
+        - 10f06e
+  changes:
+    - 1.0.0
+    - 5.0.0
+    - 5.7.0
+    - 6.0.0-beta1
+    - 6.0.0
+    - 6.2.0
+    - 6.3.0
+    - 6.4.0
+    - 6.5.0
+    - 6.6.0
+    - 6.7.0
+    - 7.0.0
+    - 7.1.0
+    - 7.2.0
+    - 7.3.0
+    - 7.3.0
+  label: Eye
+  search:
+    terms:
+      - eye
+      - focus
+      - glimpse
+      - look
+      - observe
+      - peek
+      - see
+      - sight
+      - stare
+      - view
+      - visible
+      - vision
+      - watch
+  styles:
+    - solid
+  unicode: f06e
+  voted: false
+eye-slash:
+  aliases:
+    unicodes:
+      secondary:
+        - 10f070
+  changes:
+    - 1.0.0
+    - 5.0.0
+    - 5.7.0
+    - 6.0.0-beta1
+    - 6.0.0
+    - 6.2.0
+    - 6.3.0
+    - 6.4.0
+    - 6.5.0
+    - 6.6.0
+    - 6.7.0
+    - 7.0.0
+    - 7.1.0
+    - 7.2.0
+    - 7.3.0
+    - 7.3.0
+  label: Eye Slash
+  search:
+    terms:
+      - blocked
+      - conceal
+      - disable
+      - eye
+      - hidden
+      - hide
+      - invisible
+      - no-view
+      - obscured
+      - privacy
+      - privacy-mode
+      - security
+      - toggle
+      - unseen
+  styles:
+    - solid
+  unicode: f070
+  voted: false
 gear:
   aliases:
     names:
@@ -167,6 +258,8 @@ gear:
     - 7.0.0
     - 7.1.0
     - 7.2.0
+    - 7.3.0
+    - 7.3.0
   label: Gear
   search:
     terms:
@@ -208,6 +301,8 @@ microphone:
     - 7.0.0
     - 7.1.0
     - 7.2.0
+    - 7.3.0
+    - 7.3.0
   label: Microphone
   search:
     terms:
@@ -275,6 +370,8 @@ microphone-slash:
     - 7.0.0
     - 7.1.0
     - 7.2.0
+    - 7.3.0
+    - 7.3.0
   label: Microphone Slash
   search:
     terms:
@@ -380,6 +477,8 @@ video:
     - 7.0.0
     - 7.1.0
     - 7.2.0
+    - 7.3.0
+    - 7.3.0
   label: Video
   search:
     terms:
@@ -417,6 +516,8 @@ video-slash:
     - 7.0.0
     - 7.1.0
     - 7.2.0
+    - 7.3.0
+    - 7.3.0
   label: Video Slash
   search:
     terms:
@@ -457,6 +558,8 @@ volume:
     - 7.0.0
     - 7.1.0
     - 7.2.0
+    - 7.3.0
+    - 7.3.0
   label: Volume
   search:
     terms:

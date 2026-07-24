@@ -25,6 +25,8 @@ camera:
     - 7.0.0
     - 7.1.0
     - 7.2.0
+    - 7.3.0
+    - 7.3.0
   familyStylesByLicense:
     free:
       - family: classic
@@ -63,6 +65,8 @@ camera-slash:
     - 6.7.0
     - 7.0.0
     - 7.1.0
+    - 7.3.0
+    - 7.3.0
   familyStylesByLicense:
     free: []
     pro:
@@ -160,6 +164,103 @@ display-slash:
       - screen
   unicode: e2fa
   voted: false
+eye:
+  aliases:
+    unicodes:
+      composite:
+        - 1f441
+      secondary:
+        - 10f06e
+  changes:
+    - 1.0.0
+    - 5.0.0
+    - 5.7.0
+    - 6.0.0-beta1
+    - 6.0.0
+    - 6.2.0
+    - 6.3.0
+    - 6.4.0
+    - 6.5.0
+    - 6.6.0
+    - 6.7.0
+    - 7.0.0
+    - 7.1.0
+    - 7.2.0
+    - 7.3.0
+    - 7.3.0
+  familyStylesByLicense:
+    free:
+      - family: classic
+        style: solid
+    pro:
+      - family: classic
+        style: solid
+  label: Eye
+  search:
+    terms:
+      - eye
+      - focus
+      - glimpse
+      - look
+      - observe
+      - peek
+      - see
+      - sight
+      - stare
+      - view
+      - visible
+      - vision
+      - watch
+  unicode: f06e
+  voted: false
+eye-slash:
+  aliases:
+    unicodes:
+      secondary:
+        - 10f070
+  changes:
+    - 1.0.0
+    - 5.0.0
+    - 5.7.0
+    - 6.0.0-beta1
+    - 6.0.0
+    - 6.2.0
+    - 6.3.0
+    - 6.4.0
+    - 6.5.0
+    - 6.6.0
+    - 6.7.0
+    - 7.0.0
+    - 7.1.0
+    - 7.2.0
+    - 7.3.0
+    - 7.3.0
+  familyStylesByLicense:
+    free:
+      - family: classic
+        style: solid
+    pro:
+      - family: classic
+        style: solid
+  label: Eye Slash
+  search:
+    terms:
+      - blocked
+      - conceal
+      - disable
+      - eye
+      - hidden
+      - hide
+      - invisible
+      - no-view
+      - obscured
+      - privacy
+      - privacy-mode
+      - security
+      - toggle
+      - unseen
+  unicode: f070
+  voted: false
 gear:
   aliases:
     names:
@@ -183,6 +284,8 @@ gear:
     - 7.0.0
     - 7.1.0
     - 7.2.0
+    - 7.3.0
+    - 7.3.0
   familyStylesByLicense:
     free:
       - family: classic
@@ -229,6 +332,8 @@ microphone:
     - 7.0.0
     - 7.1.0
     - 7.2.0
+    - 7.3.0
+    - 7.3.0
   familyStylesByLicense:
     free:
       - family: classic
@@ -305,6 +410,8 @@ microphone-slash:
     - 7.0.0
     - 7.1.0
     - 7.2.0
+    - 7.3.0
+    - 7.3.0
   familyStylesByLicense:
     free:
       - family: classic
@@ -421,6 +528,8 @@ video:
     - 7.0.0
     - 7.1.0
     - 7.2.0
+    - 7.3.0
+    - 7.3.0
   familyStylesByLicense:
     free:
       - family: classic
@@ -463,6 +572,8 @@ video-slash:
     - 7.0.0
     - 7.1.0
     - 7.2.0
+    - 7.3.0
+    - 7.3.0
   familyStylesByLicense:
     free:
       - family: classic
@@ -508,6 +619,8 @@ volume:
     - 7.0.0
     - 7.1.0
     - 7.2.0
+    - 7.3.0
+    - 7.3.0
   familyStylesByLicense:
     free:
       - family: classic

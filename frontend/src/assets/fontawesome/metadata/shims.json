@@ -8,5 +8,25 @@
     "video-camera",
     null,
     "video"
+  ],
+  [
+    "eye",
+    "far",
+    null
+  ],
+  [
+    "eye-slash",
+    "far",
+    null
+  ],
+  [
+    61550,
+    "far",
+    "eye"
+  ],
+  [
+    61552,
+    "far",
+    "eye-slash"
   ]
 ]

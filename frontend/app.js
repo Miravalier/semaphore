@@ -30,7 +30,7 @@ app.whenReady().then(() => {
         const sources = await desktopCapturer.getSources({types: ["screen", "window"]});
         for (const source of sources) {
             if (source.id == selectedDisplayMediaId) {
-                callback({video: source, audio: 'loopback'});
+                callback({video: source});
                 return;
             }
         }

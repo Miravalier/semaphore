@@ -10,3 +10,11 @@ export function randomChoice<T>(items: T[]): T {
     }
     return items[randomUint32() % items.length];
 }
+
+export async function intFromStringByHashing(key: string): Promise<number> {
+  const encoder = new TextEncoder();
+  const encodedKey = encoder.encode(key);
+  const digest = await window.crypto.subtle.digest("SHA-1", encodedKey);
+  const view = new Uint32Array(digest);
+  return view.at(0);
+}

@@ -1,0 +1,6 @@
+[Sooner]
+- Change noise gate threshold via "input sensitivity" slider
+
+[Later]
+- Let people move around videos and screenshares
+- When closing a shared window, end the screenshare

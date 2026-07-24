@@ -1,9 +1,11 @@
 import * as Elements from "./elements";
 import { Future } from "./async";
 
-
+let haveVideoPermissions = false;
+let haveAudioPermissions = false;
 let selectedAudioDevice: MediaDeviceInfo | null = null;
 let selectedVideoDevice: MediaDeviceInfo | null = null;
+let inputThreshold: number = -50.0;
 
 
 export type ScreenCaptureSource = {
@@ -36,20 +38,23 @@ export function videoIsSelected(): boolean {
 
 
 export enum SelectDeviceType {
-    AudioOnly = 0,
-    VideoAllowed = 1,
-    VideoRequested = 2,
-    VideoRequired = 3,
+    SettingsWithAudio = 0,
+    SettingsWithVideo = 1,
+    InitialSelect = 2,
+    TurnOnVideo = 3,
 }
 
 
-export async function selectDevices(requestType: SelectDeviceType): Promise<void> {
+export function getInputThreshold(): number {
+    return inputThreshold;
+}
+
+
+export async function selectDevices(requestType: SelectDeviceType, analyser: AnalyserNode | null): Promise<void> {
     // In the browser, you have to ask for permissions before you can
     // enumerate the microphones or video devices.
     if (!isElectron()) {
-        if (requestType === SelectDeviceType.VideoRequested) {
-            await getVideoPermissions();
-        } else if (requestType === SelectDeviceType.VideoRequired) {
+        if (requestType === SelectDeviceType.TurnOnVideo) {
             if (!await getVideoPermissions()) {
                 throw "Failed to get video permissions";
             }
@@ -57,9 +62,45 @@ export async function selectDevices(requestType: SelectDeviceType): Promise<void
             await getAudioPermissions();
         }
     }
-    const dialogResult = new Future<{audioUuid: string, videoUuid: string}>();
+    const dialogResult = new Future<{apply: boolean, audioUuid: string, videoUuid: string}>();
     const devices = await navigator.mediaDevices.enumerateDevices();
     const dialog = Elements.div("dialog");
+    let intervalId = -1;
+
+    // if (analyser !== null) {
+    //     const sensitivityContainer = dialog.appendChild(Elements.div(["field", "column"]));
+    //     const sensitivityLabel = sensitivityContainer.appendChild(Elements.div("label"));
+    //     sensitivityLabel.innerHTML = `Input Sensitivity <i class="fa-solid fa-microphone-signal-meter"></i>`;
+    //     const volumeIndicator = sensitivityContainer.appendChild(Elements.div("volume-indicator"));
+    //     volumeIndicator.style.width = "120px";
+    //     const sensitivityInput = sensitivityContainer.appendChild(document.createElement("input"));
+    //     sensitivityInput.type = "range";
+    //     sensitivityInput.min = "0";
+    //     sensitivityInput.max = "100";
+    //     sensitivityInput.step = "any";
+    //     sensitivityInput.value = "50";
+
+    //     const minDecibels = analyser.minDecibels;
+    //     const maxDecibels = analyser.maxDecibels;
+    //     const frequencyBinCount = analyser.frequencyBinCount;
+    //     const dataArray = new Uint8Array(frequencyBinCount);
+    //     intervalId = setInterval(() => {
+    //         analyser.getByteFrequencyData(dataArray);
+    //         let sumOfSquares = 0.0;
+    //         for (let i=0; i < frequencyBinCount; i++) {
+    //             sumOfSquares += dataArray[i] * dataArray[i];
+    //         }
+    //         let geometricMean = Math.sqrt(sumOfSquares / frequencyBinCount);
+    //         if (geometricMean < 0) {
+    //             geometricMean = 0;
+    //         }
+    //         if (geometricMean > 255) {
+    //             geometricMean = 255;
+    //         }
+    //         const volumeDb = (geometricMean / 255) * (maxDecibels - minDecibels) + minDecibels;
+    //         console.log("VolumeDb", volumeDb);
+    //     }, 50);
+    // }
 
     const audioSelectContainer = dialog.appendChild(Elements.div("field"));
     const audioSelectLabel = audioSelectContainer.appendChild(Elements.div("label"));
@@ -74,6 +115,7 @@ export async function selectDevices(requestType: SelectDeviceType): Promise<void
     const noVideoOption = videoSelect.appendChild(document.createElement("option"));
     noVideoOption.value = "";
     noVideoOption.textContent = "None";
+
     const deviceMap: {[id: string]: MediaDeviceInfo} = {};
     let audioOptionCount = 0;
     let videoOptionCount = 0;
@@ -106,16 +148,33 @@ export async function selectDevices(requestType: SelectDeviceType): Promise<void
         audioOption.value = "";
         audioOption.textContent = "(No Audio Sources)";
     }
-    if (videoOptionCount == 0 || requestType === SelectDeviceType.AudioOnly) {
+    if (videoOptionCount == 0 || requestType === SelectDeviceType.SettingsWithAudio) {
         videoSelect.value = "";
         videoSelectContainer.remove();
     }
-    dialog.appendChild(Elements.button([], "Save", () => {
-        dialogResult.resolve({audioUuid: audioSelect.value, videoUuid: videoSelect.value});
+
+    const buttonRow = dialog.appendChild(Elements.div("row"));
+
+    buttonRow.appendChild(Elements.button([], "Save", () => {
+        dialogResult.resolve({apply: true, audioUuid: audioSelect.value, videoUuid: videoSelect.value});
     }));
+
+    if (requestType !== SelectDeviceType.InitialSelect) {
+        buttonRow.appendChild(Elements.button([], "Cancel", () => {
+            dialogResult.resolve({apply: false, audioUuid: null, videoUuid: null});
+        }));
+    }
+
     document.body.appendChild(dialog);
-    const {audioUuid, videoUuid} = await dialogResult;
+    const {apply, audioUuid, videoUuid} = await dialogResult;
+
     dialog.remove();
+    if (intervalId !== -1) {
+        clearInterval(intervalId);
+    }
+    if (!apply) {
+        return;
+    }
 
     if (audioUuid === "") {
         selectedAudioDevice = null;
@@ -156,10 +215,14 @@ export async function getAudioPermissions(): Promise<boolean> {
     if (isElectron()) {
         return true;
     }
+    if (haveAudioPermissions) {
+        return true;
+    }
     try {
         await navigator.mediaDevices.getUserMedia({
             audio: true,
         });
+        haveAudioPermissions = true;
         return true;
     } catch {
         return false;
@@ -171,11 +234,15 @@ export async function getVideoPermissions(): Promise<boolean> {
     if (isElectron()) {
         return true;
     }
+    if (haveVideoPermissions) {
+        return true;
+    }
     try {
         await navigator.mediaDevices.getUserMedia({
             video: true,
             audio: true,
         });
+        haveVideoPermissions = true;
         return true;
     } catch {
         return false;
